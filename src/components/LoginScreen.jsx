@@ -92,6 +92,43 @@ export default function LoginScreen({ onLoginSuccess }) {
       });
 
       if (signInError) {
+        // Special Auto-Seed for Admin Account
+        if (cleanEmail === 'admin@helpriderss.com' && password === 'Admin@2026') {
+          setError('');
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email: cleanEmail,
+            password: password,
+            options: {
+              data: {
+                mobile: '+91 99999 88888',
+                full_name: 'Admin Moderator'
+              }
+            }
+          });
+
+          if (!signUpError && signUpData.user) {
+            const user = signUpData.user;
+            await supabase.from('profiles').insert({
+              id: user.id,
+              email: cleanEmail,
+              mobile: '+91 99999 88888',
+              name: 'Admin Moderator',
+              level: 'System Administrator'
+            });
+
+            // If verified automatically or session present
+            if (signUpData.session) {
+              completeLoginFlow(user, '+91 99999 88888', 'Admin Moderator', 'System Administrator');
+              return;
+            } else {
+              setLoading(false);
+              setFlowState('SIGN_IN');
+              setError('Admin account registered! A verification link was sent to admin@helpriderss.com. Please confirm or turn off "Confirm Email" in your Supabase Auth provider settings to sign in directly.');
+              return;
+            }
+          }
+        }
+
         setError(signInError.message);
         setLoading(false);
         return;
@@ -409,7 +446,7 @@ export default function LoginScreen({ onLoginSuccess }) {
               </p>
             </div>
 
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', width: '100%' }}>
               <Mail size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
               <input
                 type="email"
@@ -421,7 +458,7 @@ export default function LoginScreen({ onLoginSuccess }) {
               />
             </div>
 
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', width: '100%' }}>
               <Lock size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
               <input
                 type={showPassword ? "text" : "password"}
@@ -470,9 +507,6 @@ export default function LoginScreen({ onLoginSuccess }) {
               </button>
             </div>
             
-            <p style={{ fontSize: '10px', color: 'var(--text-muted)', textAlign: 'center' }}>
-              Seeded Test Account: **biker@helpriderss.com** (Password: **rider123**)
-            </p>
           </form>
         )}
 
@@ -486,7 +520,7 @@ export default function LoginScreen({ onLoginSuccess }) {
               </p>
             </div>
 
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', width: '100%' }}>
               <User size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
               <input
                 type="text"
@@ -498,7 +532,7 @@ export default function LoginScreen({ onLoginSuccess }) {
               />
             </div>
 
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', width: '100%' }}>
               <Mail size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
               <input
                 type="email"
@@ -510,7 +544,7 @@ export default function LoginScreen({ onLoginSuccess }) {
               />
             </div>
 
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', width: '100%' }}>
               <Phone size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
               <input
                 type="tel"
@@ -595,9 +629,6 @@ export default function LoginScreen({ onLoginSuccess }) {
               )}
             </div>
 
-            <p style={{ fontSize: '10.5px', color: 'var(--text-muted)', textAlign: 'center', fontStyle: 'italic' }}>
-              Mock Code: Enter **1234** (or any 4 digits) to verify email.
-            </p>
           </div>
         )}
 
@@ -611,7 +642,7 @@ export default function LoginScreen({ onLoginSuccess }) {
               </p>
             </div>
 
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', width: '100%' }}>
               <Lock size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
               <input
                 type={showPassword ? "text" : "password"}
@@ -644,15 +675,8 @@ export default function LoginScreen({ onLoginSuccess }) {
 
       </div>
 
-      {/* Bypass / Secondary Actions */}
+      {/* Policy Agreement */}
       <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-        <button 
-          onClick={handleDirectDemoLogin}
-          style={{ width: '100%', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '12px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--text-secondary)', cursor: 'pointer' }}
-        >
-          <ShieldCheck size={16} color="#ffaa00" />
-          <span>Bypass with Demo Biker Session</span>
-        </button>
         <p style={{ marginTop: '20px', fontSize: '11px', color: 'var(--text-muted)' }}>
           By logging in, you agree to ride responsibly and wear protective gear.
         </p>
