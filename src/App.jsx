@@ -239,6 +239,24 @@ export default function App() {
     }, 3500);
   };
 
+  const handleDeleteRide = (rideId) => {
+    setCustomRides(prev => prev.filter(r => r.id !== rideId));
+    setToastMessage('🗑️ Ride deleted successfully!');
+    setTimeout(() => setToastMessage(''), 3500);
+  };
+
+  const handleToggleFavorite = (rideId) => {
+    setCustomRides(prev => prev.map(r => {
+      if (r.id === rideId) {
+        const nextFav = !r.isFavorite;
+        setToastMessage(nextFav ? '❤️ Added to favorites!' : '💔 Removed from favorites!');
+        setTimeout(() => setToastMessage(''), 2500);
+        return { ...r, isFavorite: nextFav };
+      }
+      return r;
+    }));
+  };
+
 
 
   // Request GPS mock permission status
@@ -327,13 +345,15 @@ export default function App() {
               setEditingRide(ride);
               setNewRideOpen(true);
             }}
+            onDeleteRide={handleDeleteRide}
+            onToggleFavoriteRide={handleToggleFavorite}
           />
         )}
         
         {activeTab === 'lets-ride' && <LetsRide />}
         
         {activeTab === 'profile' && (
-          <Profile user={user} onLogout={handleLogout} />
+          <Profile user={user} onLogout={handleLogout} rides={customRides} />
         )}
       </div>
 

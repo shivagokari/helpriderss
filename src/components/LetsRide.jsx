@@ -60,8 +60,8 @@ export default function LetsRide() {
         description: 'Planning a relaxed breakfast ride. Riding at a comfortable pace of 70-80 km/h. Meetup at Uppal Metro Station.',
         joinedCount: 4,
         joinRequests: [
-          { name: 'Karthik Kumar', bikeModel: 'Bajaj Pulsar N160', phone: '+91 91234 56789', age: '24', crewType: 'Solo' },
-          { name: 'Srinivas Rao', bikeModel: 'Honda Unicorn', phone: '+91 82345 67890', age: '32', crewType: 'Duo' }
+          { id: 'req-1', name: 'Karthik Kumar', bikeModel: 'Bajaj Pulsar N160', phone: '+91 91234 56789', age: '24', crewType: 'Solo', status: 'Pending' },
+          { id: 'req-2', name: 'Srinivas Rao', bikeModel: 'Honda Unicorn', phone: '+91 82345 67890', age: '32', crewType: 'Duo', status: 'Pending' }
         ]
       },
       {
@@ -77,6 +77,23 @@ export default function LetsRide() {
         description: 'Scenic highway ride through Nallamala forest reserve. Please wear full safety gears. Rain coats are mandatory.',
         joinedCount: 8,
         joinRequests: []
+      },
+      {
+        id: 'social-3',
+        creator: 'You (Host)',
+        creatorPhone: '+91 99009 90099',
+        title: 'Bikers Breakfast Run to Vikarabad',
+        route: 'Gachibowli ➔ Vikarabad (Ananthagiri Hills)',
+        date: '2026-06-05',
+        time: '06:00 AM',
+        distance: '75 KM',
+        bikeType: 'All Bikes Welcome',
+        description: 'Sunday morning breakfast run to Ananthagiri Hills. Short 75 KM highway run. Join up for a quick tea!',
+        joinedCount: 2,
+        joinRequests: [
+          { id: 'req-3', name: 'Kiran Goud', bikeModel: 'Pulsar N250', phone: '+91 70123 45678', age: '25', crewType: 'Solo', status: 'Pending' },
+          { id: 'req-4', name: 'Manish Reddy', bikeModel: 'KTM Duke 390', phone: '+91 90123 45678', age: '28', crewType: 'Solo', status: 'Pending' }
+        ]
       }
     ];
 
@@ -106,6 +123,56 @@ export default function LetsRide() {
     e.preventDefault();
     if (!newRide.title || !newRide.route || !newRide.date || !newRide.time) {
       showToast('⚠️ Please fill out all required details.');
+      return;
+    }
+
+    // Parse selected date and time to verify it's not in the past
+    const isPastDateTime = (dateStr, timeStr) => {
+      const now = new Date();
+      const selectedDate = new Date(dateStr);
+      
+      const yyyy = selectedDate.getFullYear();
+      const mm = selectedDate.getMonth();
+      const dd = selectedDate.getDate();
+      
+      let hours = 0;
+      let minutes = 0;
+      
+      const cleanTime = timeStr.trim().toLowerCase();
+      const ampmMatch = cleanTime.match(/(am|pm)/);
+      let isPM = false;
+      if (ampmMatch) {
+        if (ampmMatch[0] === 'pm') {
+          isPM = true;
+        }
+      }
+      
+      const timeDigits = cleanTime.replace(/[a-z]/g, '').trim().split(':');
+      if (timeDigits.length >= 1) {
+        let parsedHour = parseInt(timeDigits[0], 10);
+        if (!isNaN(parsedHour)) {
+          if (isPM && parsedHour < 12) {
+            parsedHour += 12;
+          } else if (!isPM && parsedHour === 12) {
+            parsedHour = 0;
+          }
+          hours = parsedHour;
+        }
+      }
+      
+      if (timeDigits.length >= 2) {
+        let parsedMin = parseInt(timeDigits[1], 10);
+        if (!isNaN(parsedMin)) {
+          minutes = parsedMin;
+        }
+      }
+      
+      const selectedDateTime = new Date(yyyy, mm, dd, hours, minutes);
+      return selectedDateTime < now;
+    };
+
+    if (isPastDateTime(newRide.date, newRide.time)) {
+      showToast('⚠️ Cannot select a past date or time.');
       return;
     }
 
@@ -160,7 +227,16 @@ export default function LetsRide() {
     const updated = rides.map(r => {
       if (r.id === selectedRide.id) {
         const requests = r.joinRequests ? [...r.joinRequests] : [];
-        requests.push({ ...joinForm });
+        requests.push({ 
+          id: 'req-' + Date.now(),
+          name: joinForm.name,
+          bikeModel: joinForm.bikeModel,
+          phone: joinForm.phone,
+          age: joinForm.age,
+          crewType: joinForm.crewType,
+          status: 'Pending',
+          isMe: true
+        });
         return {
           ...r,
           joinedCount: r.joinedCount + 1,
@@ -195,6 +271,25 @@ export default function LetsRide() {
       age: '',
       crewType: 'Solo'
     });
+
+    showToast('✅ Request to join crew submitted!');
+  };
+
+  const handleRequestAction = (rideId, requestId, action) => {
+    const updated = rides.map(r => {
+      if (r.id === rideId) {
+        const reqs = r.joinRequests.map(req => {
+          if (req.id === requestId) {
+            return { ...req, status: action === 'accept' ? 'Accepted' : 'Declined' };
+          }
+          return req;
+        });
+        return { ...r, joinRequests: reqs };
+      }
+      return r;
+    });
+    saveRidesToStorage(updated);
+    showToast(`Request ${action === 'accept' ? 'accepted' : 'declined'} successfully!`);
   };
 
   return (
@@ -310,17 +405,47 @@ export default function LetsRide() {
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {ride.joinRequests.map((req, rIdx) => (
-                        <div key={rIdx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', padding: '10px', borderRadius: '8px', fontSize: '11px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', fontWeight: 'bold', marginBottom: '2px' }}>
+                        <div key={rIdx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', padding: '12px', borderRadius: '10px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', fontWeight: 'bold' }}>
                             <span>👤 {req.name} (Age: {req.age})</span>
                             <span style={{ color: 'var(--secondary)' }}>{req.crewType}</span>
                           </div>
                           <div style={{ color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span>🏍️ {req.bikeModel}</span>
-                            <a href={`tel:${req.phone}`} style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '3px', textDecoration: 'none' }}>
-                              <Phone size={10} /> Call
-                            </a>
+                            <span>Status: <strong style={{ 
+                              color: req.status === 'Accepted' ? '#00e676' : req.status === 'Declined' ? '#ff1744' : 'var(--primary)'
+                            }}>{req.status || 'Pending'}</strong></span>
                           </div>
+                          
+                          {/* If accepted, show contact number */}
+                          {req.status === 'Accepted' && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0, 230, 118, 0.05)', padding: '6px 8px', borderRadius: '6px', marginTop: '4px' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>📞 {req.phone}</span>
+                              <a href={`tel:${req.phone}`} style={{ color: '#00e676', display: 'flex', alignItems: 'center', gap: '3px', textDecoration: 'none', fontWeight: 'bold' }}>
+                                <Phone size={10} /> Call Now
+                              </a>
+                            </div>
+                          )}
+
+                          {/* Action buttons if Pending */}
+                          {(req.status === 'Pending' || !req.status) && (
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                              <button 
+                                className="btn-secondary" 
+                                style={{ flex: 1, padding: '4px 8px', fontSize: '10px', borderRadius: '6px', background: 'rgba(255, 23, 68, 0.1)', borderColor: 'rgba(255, 23, 68, 0.3)', color: '#ff1744' }}
+                                onClick={() => handleRequestAction(ride.id, req.id, 'decline')}
+                              >
+                                ❌ Decline
+                              </button>
+                              <button 
+                                className="btn-primary" 
+                                style={{ flex: 1.5, padding: '4px 8px', fontSize: '10px', borderRadius: '6px', background: 'linear-gradient(135deg, #00e676 0%, #00b0ff 100%)', border: 'none', color: 'white' }}
+                                onClick={() => handleRequestAction(ride.id, req.id, 'accept')}
+                              >
+                                ✅ Accept
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -328,16 +453,76 @@ export default function LetsRide() {
                 </div>
               )}
 
-              {/* Join Action button for other users */}
-              {ride.creator !== 'You (Host)' && (
-                <button 
-                  className="btn-secondary" 
-                  style={{ width: '100%', fontSize: '12px', padding: '10px 14px', borderRadius: '10px', background: 'rgba(255,85,0,0.08)', borderColor: 'rgba(255,85,0,0.2)' }}
-                  onClick={() => handleJoinClick(ride)}
-                >
-                  Join Biker Crew
-                </button>
-              )}
+              {/* Join Action button / Status for other users */}
+              {ride.creator !== 'You (Host)' && (() => {
+                const myRequest = ride.joinRequests?.find(req => req.isMe);
+                if (!myRequest) {
+                  return (
+                    <button 
+                      className="btn-secondary" 
+                      style={{ width: '100%', fontSize: '12px', padding: '10px 14px', borderRadius: '10px', background: 'rgba(255,85,0,0.08)', borderColor: 'rgba(255,85,0,0.2)' }}
+                      onClick={() => handleJoinClick(ride)}
+                    >
+                      Join Biker Crew
+                    </button>
+                  );
+                }
+
+                return (
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Your request status:</span>
+                      <span style={{ 
+                        fontSize: '11px', 
+                        fontWeight: 'bold', 
+                        padding: '2px 8px', 
+                        borderRadius: '12px',
+                        background: myRequest.status === 'Accepted' ? 'rgba(0, 230, 118, 0.1)' : myRequest.status === 'Declined' ? 'rgba(255, 23, 68, 0.1)' : 'rgba(255, 170, 0, 0.1)',
+                        color: myRequest.status === 'Accepted' ? '#00e676' : myRequest.status === 'Declined' ? '#ff1744' : '#ffaa00'
+                      }}>
+                        {myRequest.status === 'Accepted' ? 'Request Approved ✅' : myRequest.status === 'Declined' ? 'Request Declined ❌' : '⏳ Pending Approval'}
+                      </span>
+                    </div>
+
+                    <div style={{ background: 'rgba(0, 0, 0, 0.2)', padding: '10px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Host Contact Info:</span>
+                        {myRequest.status === 'Accepted' ? (
+                          <a 
+                            href={`tel:${ride.creatorPhone}`} 
+                            style={{ color: 'var(--primary)', fontWeight: 'bold', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <Phone size={11} /> {ride.creatorPhone}
+                          </a>
+                        ) : myRequest.status === 'Declined' ? (
+                          <span style={{ color: 'var(--text-muted)' }}>🔒 Hidden (Declined)</span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>🔒 Hidden until accepted</span>
+                        )}
+                      </div>
+
+                      {myRequest.status === 'Pending' && (
+                        <button 
+                          className="btn-secondary" 
+                          style={{ 
+                            marginTop: '4px',
+                            padding: '6px 10px', 
+                            fontSize: '10px', 
+                            borderRadius: '6px', 
+                            background: 'rgba(0, 176, 255, 0.08)', 
+                            borderColor: 'rgba(0, 176, 255, 0.2)', 
+                            color: '#00b0ff',
+                            width: '100%'
+                          }}
+                          onClick={() => handleRequestAction(ride.id, myRequest.id, 'accept')}
+                        >
+                          ⚡ Simulate Host Approval
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
             </div>
           ))
@@ -388,6 +573,7 @@ export default function LetsRide() {
                   <input 
                     type="date" 
                     required
+                    min={new Date().toISOString().split('T')[0]}
                     value={newRide.date}
                     onChange={(e) => handlePostInputChange('date', e.target.value)}
                     style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
