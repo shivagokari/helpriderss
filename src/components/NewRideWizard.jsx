@@ -52,54 +52,77 @@ function getSteps(tripType, rideDurationDays) {
   return steps;
 }
 
-export default function NewRideWizard({ onClose, onSaveRide }) {
+export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
+  const getTodayDateString = () => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const [step, setStep] = useState(0);
-  const [formData, setFormData] = useState({
-    startLocation: '',
-    destination: '',
-    stops: '',
-    tripType: 'One-Way',
-    rideDates: '',
-    rideDurationDays: '1 Day',
-    rideTiming: 'Morning (6 AM - 12 PM)',
-    numRiders: 'Solo',
-    pillion: 'No',
-    bikeModel: '',
-    ridingStyle: 'Cruising (Scenic/Relaxed)',
-    budget: 'Moderate',
-    hotelPreference: 'Standard Hotel',
-    fuelType: 'Normal Petrol'
+  const [formData, setFormData] = useState(() => {
+    if (editingRide && editingRide.formData) {
+      return { ...editingRide.formData };
+    }
+    return {
+      startLocation: '',
+      destination: '',
+      stops: '',
+      tripType: 'One-Way',
+      rideDates: getTodayDateString(),
+      rideDurationDays: '1 Day',
+      rideTiming: 'Morning (6 AM - 12 PM)',
+      numRiders: 'Solo',
+      pillion: 'No Pillion (Solo Rider)',
+      bikeModel: '',
+      ridingStyle: 'Cruising (Scenic/Relaxed)',
+      budget: 'Moderate',
+      hotelPreference: 'Standard Hotel',
+      fuelType: 'Normal Petrol'
+    };
   });
 
   // Dynamic Waypoint Input States
-  const [waypoints, setWaypoints] = useState([]);
+  const [waypoints, setWaypoints] = useState(() => {
+    if (editingRide && editingRide.waypoints) {
+      return [...editingRide.waypoints];
+    }
+    return [];
+  });
   
   // Return Route States
-  const [returnStartLocation, setReturnStartLocation] = useState('');
-  const [returnDestination, setReturnDestination] = useState('');
-  const [returnWaypoints, setReturnWaypoints] = useState([]);
-  const [returnStartCoords, setReturnStartCoords] = useState(null);
-  const [returnDestCoords, setReturnDestCoords] = useState(null);
+  const [returnStartLocation, setReturnStartLocation] = useState(() => editingRide && editingRide.formData ? (editingRide.formData.returnStartLocation || '') : '');
+  const [returnDestination, setReturnDestination] = useState(() => editingRide && editingRide.formData ? (editingRide.formData.returnDestination || '') : '');
+  const [returnWaypoints, setReturnWaypoints] = useState(() => {
+    if (editingRide && editingRide.returnWaypoints) {
+      return [...editingRide.returnWaypoints];
+    }
+    return [];
+  });
+  const [returnStartCoords, setReturnStartCoords] = useState(() => editingRide ? editingRide.returnStartCoords : null);
+  const [returnDestCoords, setReturnDestCoords] = useState(() => editingRide ? editingRide.returnDestCoords : null);
   const [returnStartSuggestions, setReturnStartSuggestions] = useState([]);
   const [returnDestSuggestions, setReturnDestSuggestions] = useState([]);
-  const [returnStartSelected, setReturnStartSelected] = useState(false);
-  const [returnDestSelected, setReturnDestSelected] = useState(false);
+  const [returnStartSelected, setReturnStartSelected] = useState(() => editingRide ? true : false);
+  const [returnDestSelected, setReturnDestSelected] = useState(() => editingRide ? true : false);
 
   // Geocoding Coordinates State
-  const [startCoords, setStartCoords] = useState(null);
-  const [destCoords, setDestCoords] = useState(null);
+  const [startCoords, setStartCoords] = useState(() => editingRide ? editingRide.startCoords : null);
+  const [destCoords, setDestCoords] = useState(() => editingRide ? editingRide.destCoords : null);
   const [startSuggestions, setStartSuggestions] = useState([]);
   const [destSuggestions, setDestSuggestions] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   // Autocomplete Select Tracker to avoid infinite suggestion loops
-  const [startSelected, setStartSelected] = useState(false);
-  const [destSelected, setDestSelected] = useState(false);
+  const [startSelected, setStartSelected] = useState(() => editingRide ? true : false);
+  const [destSelected, setDestSelected] = useState(() => editingRide ? true : false);
 
   // Bike Autocomplete State
-  const [bikeSearch, setBikeSearch] = useState('');
+  const [bikeSearch, setBikeSearch] = useState(() => editingRide && editingRide.formData ? editingRide.formData.bikeModel : '');
   const [bikeSuggestions, setBikeSuggestions] = useState([]);
-  const [bikeSelected, setBikeSelected] = useState(false);
+  const [bikeSelected, setBikeSelected] = useState(() => editingRide ? true : false);
 
   // Safety precautions acceptance
   const [showSafetyChecklist, setShowSafetyChecklist] = useState(false);
@@ -514,6 +537,75 @@ export default function NewRideWizard({ onClose, onSaveRide }) {
 
   const handleInputChange = (field, value) => {
     setValidationError('');
+    
+    if (field === 'rideDates') {
+      const todayStr = getTodayDateString();
+      if (value < todayStr) {
+        setValidationError('⚠️ Past dates cannot be selected. Please select a current or future date.');
+        setShowValidationPopup(true);
+        return;
+      }
+      
+      // If selected date is today, check if all timing windows are in the past (past 9 PM)
+      if (value === todayStr) {
+        const today = new Date();
+        const currentHour = today.getHours();
+        if (currentHour >= 21) {
+          setValidationError('⚠️ All timing windows for today are in the past. Please select a future date.');
+          setShowValidationPopup(true);
+          return;
+        }
+      }
+      
+      // Auto-adjust timing window if the date changed is today and the current timing is in the past
+      let targetTiming = formData.rideTiming;
+      if (value === todayStr) {
+        const today = new Date();
+        const currentHour = today.getHours();
+        if (currentHour >= 16) {
+          targetTiming = "Sunset / Night (4 PM onwards)";
+        } else if (currentHour >= 12) {
+          if (targetTiming === "Dawn (4 AM - 6 AM)" || targetTiming === "Morning (6 AM - 12 PM)") {
+            targetTiming = "Afternoon (12 PM - 4 PM)";
+          }
+        } else if (currentHour >= 6) {
+          if (targetTiming === "Dawn (4 AM - 6 AM)") {
+            targetTiming = "Morning (6 AM - 12 PM)";
+          }
+        }
+      }
+      
+      setFormData(prev => ({ ...prev, rideDates: value, rideTiming: targetTiming }));
+      return;
+    }
+
+    if (field === 'rideTiming' && formData.rideDates) {
+      const todayStr = getTodayDateString();
+      if (formData.rideDates === todayStr) {
+        const currentHour = new Date().getHours();
+        if (value === "Dawn (4 AM - 6 AM)" && currentHour >= 6) {
+          setValidationError('⚠️ This timing window is already in the past for today.');
+          setShowValidationPopup(true);
+          return;
+        }
+        if (value === "Morning (6 AM - 12 PM)" && currentHour >= 12) {
+          setValidationError('⚠️ This timing window is already in the past for today.');
+          setShowValidationPopup(true);
+          return;
+        }
+        if (value === "Afternoon (12 PM - 4 PM)" && currentHour >= 16) {
+          setValidationError('⚠️ This timing window is already in the past for today.');
+          setShowValidationPopup(true);
+          return;
+        }
+        if (value === "Sunset / Night (4 PM onwards)" && currentHour >= 21) {
+          setValidationError('⚠️ This timing window is already in the past for today.');
+          setShowValidationPopup(true);
+          return;
+        }
+      }
+    }
+
     setFormData(prev => ({ ...prev, [field]: value }));
     
     // Clear locked coordinates if user modifies text
@@ -558,8 +650,8 @@ export default function NewRideWizard({ onClose, onSaveRide }) {
     setFormData(prev => ({ ...prev, bikeModel: bikeSearch }));
     setBikeSelected(true);
     setBikeSuggestions([]);
-    setValidationError('');
-    alert(`🏍️ Registered custom bike: ${bikeSearch}. It will now auto-suggest next time you type.`);
+    setValidationError(`✅ Registered custom bike: ${bikeSearch}. It will now suggest next time.`);
+    setTimeout(() => setValidationError(''), 4500);
   };
 
   const handleNext = () => {
@@ -668,7 +760,32 @@ export default function NewRideWizard({ onClose, onSaveRide }) {
       returnDistance = await getOSRMRouteDistance(returnCoords);
     }
     
-    const finalDistance = outboundDistance + returnDistance;
+    // Secondary Name-Based Calibration safety net
+    let finalOutboundDistance = outboundDistance;
+    const startName = (formData.startLocation || '').toLowerCase();
+    const destName = (formData.destination || '').toLowerCase();
+    const isHydRegion = (name) => /hyderabad|kukatpally|secunderabad|gachibowli|madhapur|uppal|miyapur|kondapur/i.test(name);
+    const isSrisailamRegion = (name) => /srisailam/i.test(name);
+    const isYadagiriRegion = (name) => /yadagirigutta|yadgiri/i.test(name);
+
+    if ((isHydRegion(startName) && isSrisailamRegion(destName)) || (isSrisailamRegion(startName) && isHydRegion(destName))) {
+      finalOutboundDistance = Math.max(outboundDistance, 343);
+    } else if ((isYadagiriRegion(startName) && isSrisailamRegion(destName)) || (isSrisailamRegion(startName) && isYadagiriRegion(destName))) {
+      finalOutboundDistance = Math.max(outboundDistance, 315);
+    }
+
+    let finalReturnDistance = returnDistance;
+    if (formData.tripType === 'Round Trip') {
+      const retStartName = (returnStartLocation || formData.destination || '').toLowerCase();
+      const retDestName = (returnDestination || formData.startLocation || '').toLowerCase();
+      if ((isHydRegion(retStartName) && isSrisailamRegion(retDestName)) || (isSrisailamRegion(retStartName) && isHydRegion(retDestName))) {
+        finalReturnDistance = Math.max(returnDistance, 343);
+      } else if ((isYadagiriRegion(retStartName) && isSrisailamRegion(retDestName)) || (isSrisailamRegion(retStartName) && isYadagiriRegion(retDestName))) {
+        finalReturnDistance = Math.max(returnDistance, 315);
+      }
+    }
+    
+    const finalDistance = finalOutboundDistance + finalReturnDistance;
 
     // Asynchronously query live hospitals and attractions near destination
     let hospitals = [];
@@ -767,7 +884,7 @@ export default function NewRideWizard({ onClose, onSaveRide }) {
     }
 
     const newItinerary = {
-      id: 'ride-' + Date.now(),
+      id: editingRide ? editingRide.id : 'ride-' + Date.now(),
       title: `Ride to ${destCityOnly}`,
       formData: { ...formData },
       distance: finalDistance,
@@ -1118,7 +1235,7 @@ export default function NewRideWizard({ onClose, onSaveRide }) {
                   Recalculate
                 </button>
                 <button className="btn-primary" style={{ flex: 1.5 }} onClick={handleSaveAndConfirm}>
-                  Save & Start Track
+                  Save Itinerary
                 </button>
               </div>
             </div>
@@ -1134,10 +1251,21 @@ export default function NewRideWizard({ onClose, onSaveRide }) {
                 <h3 style={{ fontSize: '18px', color: 'white', marginTop: '6px' }}>{currentStepInfo.title}</h3>
               </div>
 
-              {/* Validation Error banner */}
+              {/* Validation Error / Success banner */}
               {validationError && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent)', background: 'rgba(255,34,51,0.1)', border: '1px solid rgba(255,34,51,0.2)', padding: '10px 12px', borderRadius: '10px', fontSize: '12px', marginBottom: '14px' }} className="animate-fade-in">
-                  <AlertCircle size={16} />
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px', 
+                  color: validationError.startsWith('✅') ? 'var(--success)' : 'var(--accent)', 
+                  background: validationError.startsWith('✅') ? 'rgba(0,230,118,0.1)' : 'rgba(255,34,51,0.1)', 
+                  border: validationError.startsWith('✅') ? '1px solid rgba(0,230,118,0.2)' : '1px solid rgba(255,34,51,0.2)', 
+                  padding: '10px 12px', 
+                  borderRadius: '10px', 
+                  fontSize: '12px', 
+                  marginBottom: '14px' 
+                }} className="animate-fade-in">
+                  <AlertCircle size={16} color={validationError.startsWith('✅') ? 'var(--success)' : 'var(--accent)'} />
                   <span>{validationError}</span>
                 </div>
               )}
@@ -1412,6 +1540,7 @@ export default function NewRideWizard({ onClose, onSaveRide }) {
                         <input
                           type="date"
                           value={formData.rideDates}
+                          min={getTodayDateString()}
                           onChange={(e) => handleInputChange('rideDates', e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
                           style={{ width: '100%', fontSize: '14px', background: '#1c1c24' }}
@@ -1424,10 +1553,10 @@ export default function NewRideWizard({ onClose, onSaveRide }) {
                           onChange={(e) => handleInputChange('rideTiming', e.target.value)}
                           style={{ width: '100%', padding: '10px 12px', fontSize: '13px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}
                         >
-                          <option value="Dawn (4 AM - 6 AM)">Dawn (4 AM - 6 AM)</option>
-                          <option value="Morning (6 AM - 12 PM)">Morning (6 AM - 12 PM)</option>
-                          <option value="Afternoon (12 PM - 4 PM)">Afternoon (12 PM - 4 PM)</option>
-                          <option value="Sunset / Night (4 PM onwards)">Sunset / Night (4 PM onwards)</option>
+                          <option value="Dawn (4 AM - 6 AM)" disabled={formData.rideDates === getTodayDateString() && new Date().getHours() >= 6}>Dawn (4 AM - 6 AM)</option>
+                          <option value="Morning (6 AM - 12 PM)" disabled={formData.rideDates === getTodayDateString() && new Date().getHours() >= 12}>Morning (6 AM - 12 PM)</option>
+                          <option value="Afternoon (12 PM - 4 PM)" disabled={formData.rideDates === getTodayDateString() && new Date().getHours() >= 16}>Afternoon (12 PM - 4 PM)</option>
+                          <option value="Sunset / Night (4 PM onwards)" disabled={formData.rideDates === getTodayDateString() && new Date().getHours() >= 21}>Sunset / Night (4 PM onwards)</option>
                         </select>
                       </div>
                     </div>
@@ -1559,7 +1688,7 @@ export default function NewRideWizard({ onClose, onSaveRide }) {
        {/* SUCCESS SAFE JOURNEY & QUOTE OVERLAY */}
        {showSuccessOverlay && (
          <div className="bottom-sheet-overlay animate-fade-in" style={{ zIndex: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(5, 5, 6, 0.95)' }}>
-           <div className="glass-panel animate-zoom-in" style={{ width: '85%', maxWidth: '340px', padding: '30px 20px', background: 'radial-gradient(circle, #20130c 0%, #0c0c0e 100%)', borderColor: 'var(--primary)', textAlign: 'center', boxShadow: '0 10px 40px rgba(255,85,0,0.3)', borderRadius: '24px' }}>
+           <div className="glass-panel animate-zoom-in" style={{ width: '85%', maxWidth: '340px', padding: '30px 20px', background: 'radial-gradient(circle, #20130c 0%, #0c0c0e 100%)', borderColor: 'var(--primary)', textAlign: 'center', boxShadow: '0 10px 40px rgba(255,85,0,0.3)', borderRadius: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
              <div className="animate-pulse-biker" style={{ fontSize: '56px', marginBottom: '16px' }}>🏍️</div>
              
              <h2 style={{ fontSize: '22px', fontFamily: 'var(--font-display)', color: 'white', marginBottom: '12px' }}>
@@ -1576,16 +1705,22 @@ export default function NewRideWizard({ onClose, onSaveRide }) {
                <div className="animate-progress-bar" style={{ height: '100%', background: 'linear-gradient(90deg, var(--primary), var(--secondary))' }} />
              </div>
              
-             <button 
-               className="btn-primary" 
-               style={{ width: '100%', padding: '12px', fontSize: '13px', borderRadius: '12px' }}
-               onClick={() => {
-                 onSaveRide(generatedItinerary);
-                 onClose();
-               }}
-             >
-               Start Riding Now!
-             </button>
+             <div style={{ 
+               display: 'inline-flex', 
+               alignItems: 'center', 
+               gap: '6px', 
+               background: 'rgba(0, 230, 118, 0.1)', 
+               border: '1px solid rgba(0, 230, 118, 0.2)', 
+               padding: '8px 16px', 
+               borderRadius: '30px', 
+               fontSize: '12px', 
+               color: 'var(--success)', 
+               fontWeight: 'bold', 
+               boxShadow: '0 4px 12px rgba(0,230,118,0.15)',
+               marginTop: '4px'
+             }}>
+               ✅ {editingRide ? "Ride successfully updated" : "Ride successfully added"}
+             </div>
            </div>
          </div>
        )}

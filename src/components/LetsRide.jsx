@@ -32,9 +32,16 @@ export default function LetsRide() {
     crewType: 'Solo'
   });
 
-  // Notifications State
   const [notifications, setNotifications] = useState([]);
   const [activeNotification, setActiveNotification] = useState(null);
+  const [toastMessage, setToastMessage] = useState('');
+  
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage('');
+    }, 3500);
+  };
 
   // Load rides & notifications from localStorage or seed defaults
   useEffect(() => {
@@ -98,7 +105,7 @@ export default function LetsRide() {
   const handlePostSubmit = (e) => {
     e.preventDefault();
     if (!newRide.title || !newRide.route || !newRide.date || !newRide.time) {
-      alert('⚠️ Please fill out all required details.');
+      showToast('⚠️ Please fill out all required details.');
       return;
     }
 
@@ -126,7 +133,7 @@ export default function LetsRide() {
       description: ''
     });
 
-    alert('🏍️ Ride posted successfully to the community let\'s ride feed!');
+    showToast('🏍️ Ride posted successfully to community feed!');
   };
 
   // Trigger Safety Modal before Join Submission
@@ -138,7 +145,7 @@ export default function LetsRide() {
   const handleJoinSubmitAttempt = (e) => {
     e.preventDefault();
     if (!joinForm.name || !joinForm.bikeModel || !joinForm.phone || !joinForm.age) {
-      alert('⚠️ Please fill out all details correctly.');
+      showToast('⚠️ Please fill out all details correctly.');
       return;
     }
     // Show safety popup warning first
@@ -553,6 +560,33 @@ export default function LetsRide() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {/* Custom In-App Toast Notification */}
+      {toastMessage && (
+        <div 
+          className="animate-slide-up"
+          style={{
+            position: 'absolute',
+            bottom: '90px',
+            left: '16px',
+            right: '16px',
+            zIndex: 200,
+            background: 'rgba(18, 18, 22, 0.95)',
+            border: '1.5px solid var(--primary)',
+            borderRadius: '12px',
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            boxShadow: '0 8px 32px rgba(255, 85, 0, 0.25)',
+            color: 'white',
+            fontWeight: 'bold',
+            fontSize: '13px'
+          }}
+        >
+          <span style={{ fontSize: '18px' }}>🏍️</span>
+          <span>{toastMessage}</span>
         </div>
       )}
 

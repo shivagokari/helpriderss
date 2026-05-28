@@ -9,6 +9,7 @@ import NewRideWizard from './components/NewRideWizard';
 import MyRides from './components/MyRides';
 import LetsRide from './components/LetsRide';
 import Profile from './components/Profile';
+import { generateGoogleMapsLink } from './utils/geo';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -23,7 +24,144 @@ export default function App() {
   const [isReplaying, setIsReplaying] = useState(false);
 
   // User-created rides list state (persisted dynamically)
-  const [customRides, setCustomRides] = useState([]);
+  const [customRides, setCustomRides] = useState(() => {
+    const saved = localStorage.getItem('helpriders_custom_rides');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.warn("Failed to parse saved rides", e);
+      }
+    }
+    // Seed default rides with formData and coordinate info
+    return [
+      {
+        id: 'ride-101',
+        title: 'Trans-Himalayan Pass',
+        status: 'Upcoming',
+        startLocation: 'Manali',
+        destination: 'Leh',
+        dates: 'June 12 - June 18, 2026',
+        distance: 428,
+        fuelConsumption: 12.2,
+        fuelCost: 1338,
+        hotelEstimate: 12500,
+        foodEstimate: 6000,
+        totalExpenses: 19838,
+        duration: '18h 30m',
+        weatherForecast: 'Cold & Breezy, 12°C',
+        rating: 4.8,
+        isFavorite: true,
+        photos: ['🏍️ Mountains', '⛺ Jispa Camp', '🏔️ Passes'],
+        mapsLink: generateGoogleMapsLink('Manali', 'Leh'),
+        startCoords: { lat: 32.2396, lon: 77.1887 },
+        destCoords: { lat: 34.1526, lon: 77.5771 },
+        waypoints: [],
+        formData: {
+          startLocation: 'Manali, Himachal Pradesh',
+          destination: 'Leh, Ladakh',
+          stops: '',
+          tripType: 'One-Way',
+          rideDates: '2026-06-12',
+          rideDurationDays: '7 Days',
+          rideTiming: 'Morning (6 AM - 12 PM)',
+          numRiders: 'Solo',
+          pillion: 'No Pillion (Solo Rider)',
+          bikeModel: 'Royal Enfield Himalayan',
+          ridingStyle: 'Touring (Covering distance)',
+          budget: 'Moderate',
+          hotelPreference: 'Standard Hotel',
+          fuelType: 'Normal Petrol'
+        }
+      },
+      {
+        id: 'ride-102',
+        title: 'Goa Coastal Getaway',
+        status: 'Completed',
+        startLocation: 'Mumbai',
+        destination: 'Goa',
+        dates: 'April 02 - April 05, 2026',
+        distance: 590,
+        fuelConsumption: 16.8,
+        fuelCost: 1842,
+        hotelEstimate: 8000,
+        foodEstimate: 4000,
+        totalExpenses: 13842,
+        duration: '11h 15m',
+        weatherForecast: 'Sunny & Humid, 34°C',
+        rating: 5.0,
+        isFavorite: true,
+        photos: ['🌅 Beachside', '🌴 Palm Trails', '🦐 Biker Shack'],
+        mapsLink: generateGoogleMapsLink('Mumbai', 'Goa'),
+        startCoords: { lat: 19.0760, lon: 72.8777 },
+        destCoords: { lat: 15.4909, lon: 73.8278 },
+        waypoints: [],
+        formData: {
+          startLocation: 'Mumbai, Maharashtra',
+          destination: 'Panaji, Goa',
+          stops: '',
+          tripType: 'One-Way',
+          rideDates: '2026-04-02',
+          rideDurationDays: '3 Days',
+          rideTiming: 'Morning (6 AM - 12 PM)',
+          numRiders: 'Solo',
+          pillion: 'No Pillion (Solo Rider)',
+          bikeModel: 'Royal Enfield Classic 350',
+          ridingStyle: 'Cruising (Scenic/Relaxed)',
+          budget: 'Moderate',
+          hotelPreference: 'Standard Hotel',
+          fuelType: 'Normal Petrol'
+        }
+      },
+      {
+        id: 'ride-103',
+        title: 'Western Ghats Hairpins',
+        status: 'Completed',
+        startLocation: 'Pune',
+        destination: 'Mahabaleshwar',
+        dates: 'Feb 14, 2026',
+        distance: 120,
+        fuelConsumption: 3.4,
+        fuelCost: 373,
+        hotelEstimate: 0,
+        foodEstimate: 1200,
+        totalExpenses: 1573,
+        duration: '3h 10m',
+        weatherForecast: 'Foggy Morning, 18°C',
+        rating: 4.5,
+        isFavorite: false,
+        photos: ['🌫️ Foggy Ghats', '🍓 Fresh Farms'],
+        mapsLink: generateGoogleMapsLink('Pune', 'Mahabaleshwar'),
+        startCoords: { lat: 18.5204, lon: 73.8567 },
+        destCoords: { lat: 17.9220, lon: 73.6644 },
+        waypoints: [],
+        formData: {
+          startLocation: 'Pune, Maharashtra',
+          destination: 'Mahabaleshwar, Maharashtra',
+          stops: '',
+          tripType: 'One-Way',
+          rideDates: '2026-02-14',
+          rideDurationDays: '1 Day',
+          rideTiming: 'Morning (6 AM - 12 PM)',
+          numRiders: 'Solo',
+          pillion: 'No Pillion (Solo Rider)',
+          bikeModel: 'KTM Duke 390',
+          ridingStyle: 'Cruising (Scenic/Relaxed)',
+          budget: 'Moderate',
+          hotelPreference: 'Standard Hotel',
+          fuelType: 'Normal Petrol'
+        }
+      }
+    ];
+  });
+
+  const [editingRide, setEditingRide] = useState(null);
+  const [toastMessage, setToastMessage] = useState('');
+
+  // Persist custom rides to localStorage
+  useEffect(() => {
+    localStorage.setItem('helpriders_custom_rides', JSON.stringify(customRides));
+  }, [customRides]);
 
   // Check PWA Install availability
   useEffect(() => {
@@ -73,36 +211,35 @@ export default function App() {
   };
 
   const handleSaveRide = (newRide) => {
-    // Inject custom created ride from the wizard into the rides state list
+    const isEdit = customRides.some(r => r.id === newRide.id);
+    
     const enrichedRide = {
       ...newRide,
       status: 'Upcoming',
       duration: '8h 45m',
-      isFavorite: false,
-      photos: ['🏍️ Planned Map', '📍 Checklist'],
-      pathPoints: 'M 30,110 C 130,20 180,180 250,90 T 370,120' // Custom SVG route line
+      isFavorite: newRide.isFavorite || false,
+      photos: newRide.photos || ['🏍️ Planned Map', '📍 Checklist'],
+      pathPoints: newRide.pathPoints || 'M 30,110 C 130,20 180,180 250,90 T 370,120'
     };
-    setCustomRides(prev => [enrichedRide, ...prev]);
-    // Take user to My Rides tab to see their newly planned ride
+
+    if (isEdit) {
+      setCustomRides(prev => prev.map(r => r.id === newRide.id ? enrichedRide : r));
+      setToastMessage('✏️ Ride successfully updated!');
+    } else {
+      setCustomRides(prev => [enrichedRide, ...prev]);
+      setToastMessage('🎉 Ride successfully added!');
+    }
+
+    setEditingRide(null);
+    setNewRideOpen(false);
     setActiveTab('my-rides');
     
-    // Send browser native notification mock
-    if (Notification.permission === 'granted') {
-      new Notification('Ride Planned!', {
-        body: `Itinerary to ${newRide.formData.destination} is saved. Offline files synced.`,
-        icon: '/logo.svg'
-      });
-    } else {
-      alert(`🎉 Ride planned successfully! Telemetry stored locally.`);
-    }
+    setTimeout(() => {
+      setToastMessage('');
+    }, 3500);
   };
 
-  // Request notifications permission on login success
-  useEffect(() => {
-    if (user && 'Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, [user]);
+
 
   // Request GPS mock permission status
   useEffect(() => {
@@ -186,6 +323,10 @@ export default function App() {
               setReplaySheetRide(ride);
               setIsReplaying(true);
             }} 
+            onEditRide={(ride) => {
+              setEditingRide(ride);
+              setNewRideOpen(true);
+            }}
           />
         )}
         
@@ -271,8 +412,12 @@ export default function App() {
       {/* FULL SCREEN MODAL: New Ride Wizard */}
       {newRideOpen && (
         <NewRideWizard 
-          onClose={() => setNewRideOpen(false)} 
+          onClose={() => {
+            setNewRideOpen(false);
+            setEditingRide(null);
+          }} 
           onSaveRide={handleSaveRide} 
+          editingRide={editingRide}
         />
       )}
 
@@ -430,7 +575,8 @@ export default function App() {
                     onClick={() => {
                       setReplaySheetRide(null);
                       setIsReplaying(false);
-                      alert('GPX activity log shared to Strava & Helpriders Feed!');
+                      setToastMessage('📈 GPX activity log shared to Strava & Feed!');
+                      setTimeout(() => setToastMessage(''), 3500);
                     }}
                   >
                     Share Telemetry
@@ -439,6 +585,34 @@ export default function App() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Custom In-App Toast Notification */}
+      {toastMessage && (
+        <div 
+          className="animate-slide-up"
+          style={{
+            position: 'absolute',
+            bottom: '90px',
+            left: '16px',
+            right: '16px',
+            zIndex: 200,
+            background: 'rgba(18, 18, 22, 0.95)',
+            border: '1.5px solid var(--primary)',
+            borderRadius: '12px',
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            boxShadow: '0 8px 32px rgba(255, 85, 0, 0.25)',
+            color: 'white',
+            fontWeight: 'bold',
+            fontSize: '13px'
+          }}
+        >
+          <span style={{ fontSize: '18px' }}>🏍️</span>
+          <span>{toastMessage}</span>
         </div>
       )}
 

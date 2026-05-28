@@ -95,77 +95,14 @@ function ReplayMap({ ride }) {
   );
 }
 
-export default function MyRides({ rides, onOpenReplay }) {
+export default function MyRides({ rides, onOpenReplay, onEditRide }) {
   const [filter, setFilter] = useState('All'); // All, Upcoming, Completed, Saved
   const [expandedRideId, setExpandedRideId] = useState(null);
+  
+  // (the rest of MyRides state and defaultRides remains unchanged...)
 
-  // Default initial demo rides if parent list is empty
-  const defaultRides = [
-    {
-      id: 'ride-101',
-      title: 'Trans-Himalayan Pass',
-      status: 'Upcoming',
-      startLocation: 'Manali',
-      destination: 'Leh',
-      dates: 'June 12 - June 18, 2026',
-      distance: 428,
-      fuelConsumption: 12.2,
-      fuelCost: 1338,
-      hotelEstimate: 12500,
-      foodEstimate: 6000,
-      totalExpenses: 19838,
-      duration: '18h 30m',
-      weatherForecast: 'Cold & Breezy, 12°C',
-      rating: 4.8,
-      isFavorite: true,
-      photos: ['🏍️ Mountains', '⛺ Jispa Camp', '🏔️ Passes'],
-      mapsLink: generateGoogleMapsLink('Manali', 'Leh')
-    },
-    {
-      id: 'ride-102',
-      title: 'Goa Coastal Getaway',
-      status: 'Completed',
-      startLocation: 'Mumbai',
-      destination: 'Goa',
-      dates: 'April 02 - April 05, 2026',
-      distance: 590,
-      fuelConsumption: 16.8,
-      fuelCost: 1842,
-      hotelEstimate: 8000,
-      foodEstimate: 4000,
-      totalExpenses: 13842,
-      duration: '11h 15m',
-      weatherForecast: 'Sunny & Humid, 34°C',
-      rating: 5.0,
-      isFavorite: true,
-      photos: ['🌅 Beachside', '🌴 Palm Trails', '🦐 Biker Shack'],
-      mapsLink: generateGoogleMapsLink('Mumbai', 'Goa')
-    },
-    {
-      id: 'ride-103',
-      title: 'Western Ghats Hairpins',
-      status: 'Completed',
-      startLocation: 'Pune',
-      destination: 'Mahabaleshwar',
-      dates: 'Feb 14, 2026',
-      distance: 120,
-      fuelConsumption: 3.4,
-      fuelCost: 373,
-      hotelEstimate: 0,
-      foodEstimate: 1200,
-      totalExpenses: 1573,
-      duration: '3h 10m',
-      weatherForecast: 'Foggy Morning, 18°C',
-      rating: 4.5,
-      isFavorite: false,
-      photos: ['🌫️ Foggy Ghats', '🍓 Fresh Farms'],
-      mapsLink: generateGoogleMapsLink('Pune', 'Mahabaleshwar')
-    }
-  ];
 
-  const allRides = [...rides, ...defaultRides];
-
-  const filteredRides = allRides.filter(ride => {
+  const filteredRides = rides.filter(ride => {
     if (filter === 'All') return true;
     return ride.status === filter;
   });
@@ -279,25 +216,51 @@ export default function MyRides({ rides, onOpenReplay }) {
                   </div>
                 </div>
 
-                {/* Toggle details trigger */}
-                <button
-                  onClick={() => toggleExpand(ride.id)}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px',
-                    color: 'var(--text-secondary)',
-                    fontSize: '11px',
-                    marginTop: '12px',
-                    paddingTop: '8px',
-                    borderTop: '1px solid rgba(255,255,255,0.04)'
-                  }}
-                >
-                  <span>{isExpanded ? 'Hide Details' : 'Expand Route & Expenses'}</span>
-                  {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                </button>
+                {/* Toggle details and Edit triggers */}
+                <div style={{ display: 'flex', gap: '10px', marginTop: '12px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.04)', alignItems: 'center' }}>
+                  <button
+                    onClick={() => toggleExpand(ride.id)}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      color: 'var(--text-secondary)',
+                      fontSize: '11px',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span>{isExpanded ? 'Hide Details' : 'Expand Route & Expenses'}</span>
+                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </button>
+                  
+                  {ride.status === 'Upcoming' && onEditRide && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEditRide(ride);
+                      }}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: '10px',
+                        borderRadius: '6px',
+                        background: 'rgba(255, 85, 0, 0.1)',
+                        border: '1px solid rgba(255, 85, 0, 0.25)',
+                        color: 'var(--primary)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        fontWeight: '600'
+                      }}
+                    >
+                      ✏️ Edit
+                    </button>
+                  )}
+                </div>
 
                 {/* Expanded Details section */}
                 {isExpanded && (
