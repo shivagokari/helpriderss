@@ -1,0 +1,18 @@
+{
+  "short_name": "Helpriderss",
+  "name": "Helpriderss - Premium Biker Companion",
+  "description": "Mobile-first companion app for bikers, offering smart ride planning, weather alerts, and route telemetry.",
+  "icons": [
+    {
+      "src": "logo.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0d0d0e",
+  "theme_color": "#ff6600",
+  "display": "standalone",
+  "orientation": "portrait"
+}

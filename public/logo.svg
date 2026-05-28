@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="neonOrange" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff9900" />
+      <stop offset="100%" stop-color="#ff3300" />
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ff3300" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#ff3300" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <!-- Background Glow -->
+  <circle cx="256" cy="256" r="230" fill="url(#glow)" />
+  
+  <!-- Outer Ring -->
+  <circle cx="256" cy="256" r="200" fill="none" stroke="url(#neonOrange)" stroke-width="12" stroke-dasharray="10 5" opacity="0.8" />
+  
+  <!-- Stylized Winged Helmet / Biker Shield -->
+  <path d="M256,120 L370,180 L340,320 L256,390 L172,320 L142,180 Z" fill="#141416" stroke="url(#neonOrange)" stroke-width="14" stroke-linejoin="round" />
+  
+  <!-- Winged Elements -->
+  <path d="M142,180 C80,180 60,220 50,280 C80,260 110,260 130,280 Z" fill="url(#neonOrange)" />
+  <path d="M370,180 C432,180 452,220 462,280 C432,260 402,260 382,280 Z" fill="url(#neonOrange)" />
+  
+  <!-- Visor -->
+  <path d="M190,210 L322,210 C340,250 340,290 322,300 L190,300 C172,290 172,250 190,210 Z" fill="#232329" stroke="url(#neonOrange)" stroke-width="6" />
+  <path d="M200,220 L312,220 L300,260 L212,260 Z" fill="url(#neonOrange)" opacity="0.9" />
+  
+  <!-- Speed Lines -->
+  <line x1="220" y1="340" x2="292" y2="340" stroke="url(#neonOrange)" stroke-width="8" stroke-linecap="round" />
+  <line x1="235" y1="360" x2="277" y2="360" stroke="url(#neonOrange)" stroke-width="6" stroke-linecap="round" />
+</svg>
