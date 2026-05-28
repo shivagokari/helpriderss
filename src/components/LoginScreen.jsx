@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Phone, Lock, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, Flame, Compass } from 'lucide-react';
+import { Phone, Lock, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, Flame, Compass, Mail } from 'lucide-react';
 
 export default function LoginScreen({ onLoginSuccess }) {
-  // Flow states: 'PHONE_ENTRY' | 'PASSWORD_ENTRY' | 'OTP_VERIFY' | 'CREATE_PASSWORD'
-  const [flowState, setFlowState] = useState('PHONE_ENTRY');
+  // Flow states: 'SIGN_IN' | 'SIGN_UP' | 'OTP_VERIFY' | 'CREATE_PASSWORD'
+  const [flowState, setFlowState] = useState('SIGN_IN');
   
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [countryCode, setCountryCode] = useState('+91');
+  const [email, setEmail] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   
@@ -21,7 +21,7 @@ export default function LoginScreen({ onLoginSuccess }) {
 
   // Seed default registered users in localStorage if they don't exist
   const getRegisteredUsers = () => {
-    const users = localStorage.getItem('helpriders_registered_users');
+    const users = localStorage.getItem('helpriders_email_users');
     if (users) {
       try {
         return JSON.parse(users);
@@ -31,9 +31,13 @@ export default function LoginScreen({ onLoginSuccess }) {
     }
     // Default demo user seed
     const defaultUsers = {
-      '+919876543210': 'rider123'
+      'biker@helpriderss.com': {
+        email: 'biker@helpriderss.com',
+        mobile: '+91 98765 43210',
+        password: 'rider123'
+      }
     };
-    localStorage.setItem('helpriders_registered_users', JSON.stringify(defaultUsers));
+    localStorage.setItem('helpriders_email_users', JSON.stringify(defaultUsers));
     return defaultUsers;
   };
 
@@ -70,17 +74,11 @@ export default function LoginScreen({ onLoginSuccess }) {
     return () => clearInterval(interval);
   }, [flowState, timer]);
 
-  const getFullPhoneNumber = () => {
-    const cleanNum = phoneNumber.replace(/\D/g, '');
-    return `${countryCode}${cleanNum}`;
-  };
-
-  // 1. Phone number submit handler
-  const handlePhoneSubmit = (e) => {
+  // 1. Sign In handler
+  const handleSignIn = (e) => {
     e.preventDefault();
-    const cleanNum = phoneNumber.replace(/\D/g, '');
-    if (cleanNum.length < 8) {
-      setError('Please enter a valid mobile number');
+    if (!email || !password) {
+      setError('Please fill in all fields');
       return;
     }
     setError('');
@@ -88,26 +86,34 @@ export default function LoginScreen({ onLoginSuccess }) {
 
     setTimeout(() => {
       setLoading(false);
-      const fullNum = getFullPhoneNumber();
-      
-      if (registeredUsers[fullNum]) {
-        // User exists: request password directly
-        setFlowState('PASSWORD_ENTRY');
+      const cleanEmail = email.trim().toLowerCase();
+      const userRecord = registeredUsers[cleanEmail];
+
+      if (userRecord && userRecord.password === password) {
+        // Login success
+        completeLoginFlow(cleanEmail, userRecord);
+      } else if (userRecord) {
+        setError('Incorrect password. Please try again.');
       } else {
-        // First-time user: send OTP
-        setFlowState('OTP_VERIFY');
-        setTimer(30);
-        setOtpValues(['', '', '', '']);
-        setTimeout(() => otpRefs[0].current?.focus(), 100);
+        setError('Email not found. Please register via the Sign Up tab.');
       }
     }, 1000);
   };
 
-  // 2. Password submit handler for returning users
-  const handlePasswordSubmit = (e) => {
+  // 2. Sign Up handler
+  const handleSignUp = (e) => {
     e.preventDefault();
-    if (!password) {
-      setError('Please enter your password');
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !mobileNumber) {
+      setError('Please enter both email and mobile number');
+      return;
+    }
+    if (mobileNumber.replace(/\D/g, '').length < 8) {
+      setError('Please enter a valid mobile number');
+      return;
+    }
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setError('Please enter a valid email address');
       return;
     }
     setError('');
@@ -115,16 +121,17 @@ export default function LoginScreen({ onLoginSuccess }) {
 
     setTimeout(() => {
       setLoading(false);
-      const fullNum = getFullPhoneNumber();
-      const correctPassword = registeredUsers[fullNum];
-
-      if (password === correctPassword) {
-        // Login success
-        completeLoginFlow(fullNum);
-      } else {
-        setError('Incorrect password. Please try again.');
+      if (registeredUsers[cleanEmail]) {
+        setError('This email is already registered. Please Sign In.');
+        return;
       }
-    }, 900);
+      
+      // Proceed to verify email via simulated OTP
+      setFlowState('OTP_VERIFY');
+      setTimer(30);
+      setOtpValues(['', '', '', '']);
+      setTimeout(() => otpRefs[0].current?.focus(), 100);
+    }, 1200);
   };
 
   // 3. OTP verification digits input handler
@@ -156,18 +163,12 @@ export default function LoginScreen({ onLoginSuccess }) {
   const checkOtpCode = (enteredCode) => {
     setLoading(true);
     setTimeout(() => {
-      // Mock code verification (e.g. 1234 or any 4 digit matching)
+      // Mock code verification (accepts '1234' or any 4 digit code for testing)
       if (enteredCode === '1234' || enteredCode.length === 4) {
-        const fullNum = getFullPhoneNumber();
-        if (registeredUsers[fullNum]) {
-          // If returning user bypassed with OTP verification directly
-          completeLoginFlow(fullNum);
-        } else {
-          // First time user: proceed to create a password
-          setFlowState('CREATE_PASSWORD');
-          setNewPassword('');
-          setLoading(false);
-        }
+        // Proceed to set a password to finalize signup
+        setFlowState('CREATE_PASSWORD');
+        setNewPassword('');
+        setLoading(false);
       } else {
         setLoading(false);
         setError('Incorrect verification code. Hint: Use 1234');
@@ -177,7 +178,7 @@ export default function LoginScreen({ onLoginSuccess }) {
     }, 1000);
   };
 
-  // 4. Create Password submit handler for new registration
+  // 4. Create Password submit handler
   const handleCreatePassword = (e) => {
     e.preventDefault();
     if (newPassword.length < 6) {
@@ -189,27 +190,33 @@ export default function LoginScreen({ onLoginSuccess }) {
 
     setTimeout(() => {
       setLoading(false);
-      const fullNum = getFullPhoneNumber();
+      const cleanEmail = email.trim().toLowerCase();
       
       // Save new user credentials locally
-      const updatedUsers = { ...registeredUsers, [fullNum]: newPassword };
+      const userRecord = {
+        email: cleanEmail,
+        mobile: mobileNumber,
+        password: newPassword
+      };
+      
+      const updatedUsers = { ...registeredUsers, [cleanEmail]: userRecord };
       setRegisteredUsers(updatedUsers);
-      localStorage.setItem('helpriders_registered_users', JSON.stringify(updatedUsers));
+      localStorage.setItem('helpriders_email_users', JSON.stringify(updatedUsers));
 
       // Successfully sign in
-      completeLoginFlow(fullNum);
+      completeLoginFlow(cleanEmail, userRecord);
     }, 1000);
   };
 
   // Finish verification and login
-  const completeLoginFlow = (fullNum) => {
-    const cleanNumDisplay = fullNum.substring(0, 3) + ' ' + fullNum.substring(3);
+  const completeLoginFlow = (emailAddress, userRecord) => {
     const userData = {
-      phone: cleanNumDisplay,
+      phone: userRecord.mobile || '+91 98765 43210',
+      email: emailAddress,
       authenticated: true,
       level: 'Rookie Rider',
       joined: 'May 2026',
-      displayName: 'Rider_' + fullNum.slice(-4),
+      displayName: emailAddress.split('@')[0],
     };
     
     if (rememberMe) {
@@ -227,6 +234,7 @@ export default function LoginScreen({ onLoginSuccess }) {
     setTimeout(() => {
       const userData = {
         phone: '+91 9876543210',
+        email: 'ghost@helpriderss.com',
         authenticated: true,
         level: 'Apex Rider',
         joined: 'Jan 2026',
@@ -237,8 +245,13 @@ export default function LoginScreen({ onLoginSuccess }) {
     }, 800);
   };
 
-  // Send an OTP directly from password screen as bypass
-  const handleBypassWithOtp = () => {
+  // Send an OTP directly from sign-in screen as password bypass/recovery
+  const handleForgotBypassWithOtp = () => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setError('Please enter your valid registered Email Address to send OTP recovery.');
+      return;
+    }
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
@@ -247,7 +260,7 @@ export default function LoginScreen({ onLoginSuccess }) {
       setOtpValues(['', '', '', '']);
       setError('');
       setTimeout(() => otpRefs[0].current?.focus(), 100);
-    }, 600);
+    }, 800);
   };
 
   return (
@@ -276,84 +289,76 @@ export default function LoginScreen({ onLoginSuccess }) {
           </div>
         )}
 
-        {/* FLOW 1: PHONE_ENTRY */}
-        {flowState === 'PHONE_ENTRY' && (
-          <form onSubmit={handlePhoneSubmit} className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div>
-              <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', marginBottom: '4px' }}>Sign In / Register</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '11.5px', lineHeight: '1.4' }}>
-                New users verify with OTP then set a password. Returning users log in directly via password.
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <select 
-                value={countryCode} 
-                onChange={(e) => setCountryCode(e.target.value)}
-                style={{ width: '85px', padding: '12px 6px', textAlign: 'center', background: '#1c1c24', fontSize: '14px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', color: 'white' }}
-              >
-                <option value="+91">🇮🇳 +91</option>
-                <option value="+1">🇺🇸 +1</option>
-                <option value="+44">🇬🇧 +44</option>
-                <option value="+61">🇦🇺 +61</option>
-                <option value="+971">🇦🇪 +971</option>
-              </select>
-              <div style={{ position: 'relative', flex: 1 }}>
-                <Phone size={18} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
-                <input
-                  type="tel"
-                  placeholder="Mobile Number"
-                  value={phoneNumber}
-                  onChange={(e) => { setPhoneNumber(e.target.value.replace(/\D/g, '')); setError(''); }}
-                  style={{ width: '100%', paddingLeft: '44px', fontSize: '15px', background: '#1c1c24', color: 'white', height: '48px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}
-                  required
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setRememberMe(!rememberMe)}>
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={() => {}}
-                style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
-              />
-              <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>Keep me logged in</span>
-            </div>
-
-            <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', padding: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              {loading ? (
-                <div style={{ width: '18px', height: '18px', border: '3px solid transparent', borderTopColor: '#fff', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
-              ) : (
-                <>
-                  Continue <ArrowRight size={16} />
-                </>
-              )}
+        {/* Tab Selector for SIGN_IN / SIGN_UP */}
+        {(flowState === 'SIGN_IN' || flowState === 'SIGN_UP') && (
+          <div style={{ display: 'flex', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '10px', marginBottom: '20px' }}>
+            <button
+              onClick={() => { setFlowState('SIGN_IN'); setError(''); }}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                borderRadius: '8px',
+                border: 'none',
+                cursor: 'pointer',
+                background: flowState === 'SIGN_IN' ? 'var(--primary)' : 'transparent',
+                color: flowState === 'SIGN_IN' ? 'white' : 'var(--text-secondary)',
+                transition: 'all 0.2s'
+              }}
+            >
+              Sign In
             </button>
-            <p style={{ fontSize: '10px', color: 'var(--text-muted)', textAlign: 'center' }}>
-              Default Test Account: **+91 9876543210** (Password: **rider123**)
-            </p>
-          </form>
+            <button
+              onClick={() => { setFlowState('SIGN_UP'); setError(''); }}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                borderRadius: '8px',
+                border: 'none',
+                cursor: 'pointer',
+                background: flowState === 'SIGN_UP' ? 'var(--primary)' : 'transparent',
+                color: flowState === 'SIGN_UP' ? 'white' : 'var(--text-secondary)',
+                transition: 'all 0.2s'
+              }}
+            >
+              Sign Up
+            </button>
+          </div>
         )}
 
-        {/* FLOW 2: PASSWORD_ENTRY */}
-        {flowState === 'PASSWORD_ENTRY' && (
-          <form onSubmit={handlePasswordSubmit} className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {/* FLOW A: SIGN_IN */}
+        {flowState === 'SIGN_IN' && (
+          <form onSubmit={handleSignIn} className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
-              <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', marginBottom: '4px' }}>Welcome Back</h3>
+              <h3 style={{ fontSize: '16px', color: 'var(--text-primary)', marginBottom: '4px' }}>Welcome Back, Rider</h3>
               <p style={{ color: 'var(--text-secondary)', fontSize: '11.5px' }}>
-                Enter password for <strong style={{ color: 'white' }}>{countryCode} {phoneNumber}</strong>
+                Access your premium crew dashboard using your credentials.
               </p>
             </div>
 
             <div style={{ position: 'relative' }}>
-              <Lock size={18} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+              <Mail size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+              <input
+                type="email"
+                placeholder="Email Address"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                style={{ width: '100%', paddingLeft: '44px', fontSize: '14px', background: '#1c1c24', color: 'white', height: '46px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}
+                required
+              />
+            </div>
+
+            <div style={{ position: 'relative' }}>
+              <Lock size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
               <input
                 type={showPassword ? "text" : "password"}
-                placeholder="Enter Account Password"
+                placeholder="Password"
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                style={{ width: '100%', paddingLeft: '44px', paddingRight: '40px', fontSize: '14px', background: '#1c1c24', color: 'white', height: '48px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}
+                style={{ width: '100%', paddingLeft: '44px', paddingRight: '40px', fontSize: '14px', background: '#1c1c24', color: 'white', height: '46px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}
                 required
               />
               <button 
@@ -363,6 +368,16 @@ export default function LoginScreen({ onLoginSuccess }) {
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setRememberMe(!rememberMe)}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={() => {}}
+                style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
+              />
+              <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>Remember my session</span>
             </div>
 
             <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', padding: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
@@ -375,32 +390,75 @@ export default function LoginScreen({ onLoginSuccess }) {
               )}
             </button>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginTop: '4px' }}>
+            <div style={{ textAlign: 'center', fontSize: '12px' }}>
               <button 
                 type="button"
-                onClick={() => setFlowState('PHONE_ENTRY')} 
-                style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', borderBottom: '1px dashed rgba(255,255,255,0.3)', padding: 0 }}
-              >
-                Change number
-              </button>
-              <button 
-                type="button"
-                onClick={handleBypassWithOtp} 
+                onClick={handleForgotBypassWithOtp} 
                 style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
               >
-                Forgot? Login via OTP
+                Forgot Password? Bypass with Email OTP
               </button>
             </div>
+            
+            <p style={{ fontSize: '10px', color: 'var(--text-muted)', textAlign: 'center' }}>
+              Seeded Test Account: **biker@helpriderss.com** (Password: **rider123**)
+            </p>
           </form>
         )}
 
-        {/* FLOW 3: OTP_VERIFY */}
+        {/* FLOW B: SIGN_UP */}
+        {flowState === 'SIGN_UP' && (
+          <form onSubmit={handleSignUp} className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div>
+              <h3 style={{ fontSize: '16px', color: 'var(--text-primary)', marginBottom: '4px' }}>Register New Biker Account</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '11.5px' }}>
+                Verify with Email OTP, configure password, then setup your profile.
+              </p>
+            </div>
+
+            <div style={{ position: 'relative' }}>
+              <Mail size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+              <input
+                type="email"
+                placeholder="Email Address"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                style={{ width: '100%', paddingLeft: '44px', fontSize: '14px', background: '#1c1c24', color: 'white', height: '46px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}
+                required
+              />
+            </div>
+
+            <div style={{ position: 'relative' }}>
+              <Phone size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+              <input
+                type="tel"
+                placeholder="Mobile Number"
+                value={mobileNumber}
+                onChange={(e) => { setMobileNumber(e.target.value.replace(/\D/g, '')); setError(''); }}
+                style={{ width: '100%', paddingLeft: '44px', fontSize: '14px', background: '#1c1c24', color: 'white', height: '46px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}
+                required
+              />
+            </div>
+
+            <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', padding: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              {loading ? (
+                <div style={{ width: '18px', height: '18px', border: '3px solid transparent', borderTopColor: '#fff', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
+              ) : (
+                <>
+                  Send Email Verification Code <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+          </form>
+        )}
+
+        {/* FLOW C: OTP_VERIFY */}
         {flowState === 'OTP_VERIFY' && (
           <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
-              <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', marginBottom: '4px' }}>Verify OTP</h3>
+              <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', marginBottom: '4px' }}>Verify Email OTP</h3>
               <p style={{ color: 'var(--text-secondary)', fontSize: '11.5px', lineHeight: '1.4' }}>
-                We've sent a 4-digit code to <span style={{ color: 'var(--primary)' }}>{countryCode} {phoneNumber}</span>
+                We've sent a 4-digit code to <span style={{ color: 'var(--primary)' }}>{email}</span>
               </p>
             </div>
 
@@ -436,10 +494,10 @@ export default function LoginScreen({ onLoginSuccess }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
               <button 
                 type="button"
-                onClick={() => setFlowState('PHONE_ENTRY')} 
+                onClick={() => setFlowState('SIGN_IN')} 
                 style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', borderBottom: '1px dashed rgba(255,255,255,0.3)', padding: 0 }}
               >
-                Change number
+                Back to sign in
               </button>
 
               {timer > 0 ? (
@@ -450,35 +508,35 @@ export default function LoginScreen({ onLoginSuccess }) {
                   onClick={() => { setTimer(30); setOtpValues(['','','','']); setError(''); }} 
                   style={{ color: 'var(--primary)', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer' }}
                 >
-                  Resend OTP
+                  Resend OTP Code
                 </button>
               )}
             </div>
 
             <p style={{ fontSize: '10.5px', color: 'var(--text-muted)', textAlign: 'center', fontStyle: 'italic' }}>
-              Mock Verification Code: Enter **1234** (or any 4 numbers) to verify.
+              Mock Code: Enter **1234** (or any 4 digits) to verify email.
             </p>
           </div>
         )}
 
-        {/* FLOW 4: CREATE_PASSWORD */}
+        {/* FLOW D: CREATE_PASSWORD */}
         {flowState === 'CREATE_PASSWORD' && (
           <form onSubmit={handleCreatePassword} className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
-              <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', marginBottom: '4px' }}>Create Password</h3>
+              <h3 style={{ fontSize: '18px', color: 'var(--text-primary)', marginBottom: '4px' }}>Setup Secure Password</h3>
               <p style={{ color: 'var(--text-secondary)', fontSize: '11.5px' }}>
-                Set a secure password for <strong style={{ color: 'white' }}>{countryCode} {phoneNumber}</strong> to log in easily next time.
+                Choose a password for <strong style={{ color: 'white' }}>{email}</strong> to sign in quickly in the future.
               </p>
             </div>
 
             <div style={{ position: 'relative' }}>
-              <Lock size={18} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+              <Lock size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
               <input
                 type={showPassword ? "text" : "password"}
                 placeholder="Choose Account Password"
                 value={newPassword}
                 onChange={(e) => { setNewPassword(e.target.value); setError(''); }}
-                style={{ width: '100%', paddingLeft: '44px', paddingRight: '40px', fontSize: '14px', background: '#1c1c24', color: 'white', height: '48px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}
+                style={{ width: '100%', paddingLeft: '44px', paddingRight: '40px', fontSize: '14px', background: '#1c1c24', color: 'white', height: '46px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}
                 required
               />
               <button 
@@ -495,7 +553,7 @@ export default function LoginScreen({ onLoginSuccess }) {
                 <div style={{ width: '18px', height: '18px', border: '3px solid transparent', borderTopColor: '#fff', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
               ) : (
                 <>
-                  Register & Log In <ArrowRight size={16} />
+                  Complete Registration <ArrowRight size={16} />
                 </>
               )}
             </button>
