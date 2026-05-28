@@ -1,7 +1,60 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Phone, Lock, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, Flame, Compass, Mail, User, CheckCircle } from 'lucide-react';
+import { Phone, Lock, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, Flame, Mail, User, CheckCircle } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 
+/* ═══════════════════════════════════════════════════════════
+   Shared input style constants (defined OUTSIDE the component 
+   so React never re-creates them on render)
+   ═══════════════════════════════════════════════════════════ */
+const inputStyle = {
+  width: '100%',
+  paddingLeft: '44px',
+  paddingRight: '14px',
+  fontSize: '14px',
+  background: '#1c1c24',
+  color: 'white',
+  height: '48px',
+  borderRadius: '12px',
+  border: '1px solid rgba(255,255,255,0.08)',
+  outline: 'none',
+  transition: 'border-color 0.2s',
+  boxSizing: 'border-box'
+};
+
+const inputStyleWithRight = { ...inputStyle, paddingRight: '44px' };
+
+const iconAbsStyle = {
+  position: 'absolute',
+  left: '14px',
+  top: '50%',
+  transform: 'translateY(-50%)',
+  color: 'var(--text-muted)',
+  zIndex: 1
+};
+
+const otpBoxStyle = (hasDigit) => ({
+  width: '46px',
+  height: '54px',
+  textAlign: 'center',
+  fontSize: '20px',
+  fontWeight: '800',
+  color: 'white',
+  fontFamily: 'var(--font-display)',
+  border: hasDigit ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
+  boxShadow: hasDigit ? '0 0 12px rgba(255, 85, 0, 0.2)' : 'none',
+  background: '#121217',
+  borderRadius: '12px',
+  outline: 'none',
+  transition: 'all 0.2s',
+  boxSizing: 'border-box'
+});
+
+const handleFocus = (e) => { e.target.style.borderColor = 'rgba(255, 85, 0, 0.4)'; };
+const handleBlur = (e) => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; };
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN COMPONENT
+   ═══════════════════════════════════════════════════════════ */
 export default function LoginScreen({ onLoginSuccess }) {
   // Flow states: 'SIGN_IN' | 'SIGN_UP' | 'OTP_VERIFY' | 'CREATE_PASSWORD' | 'FORGOT_OTP' | 'RESET_PASSWORD'
   const [flowState, setFlowState] = useState('SIGN_IN');
@@ -19,41 +72,43 @@ export default function LoginScreen({ onLoginSuccess }) {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [timer, setTimer] = useState(60);
+  const [sessionChecked, setSessionChecked] = useState(false);
 
   const otpRefs = [useRef(null), useRef(null), useRef(null), useRef(null), useRef(null), useRef(null)];
 
-  // Auto-login check on mount
+  // Auto-login check on mount — only if a REAL Supabase session exists
   useEffect(() => {
     const checkActiveSession = async () => {
-      // 1. Check local session storage first
-      const savedUser = localStorage.getItem('helpriders_session');
-      if (savedUser) {
-        try {
-          const parsed = JSON.parse(savedUser);
-          if (parsed && parsed.authenticated) {
-            onLoginSuccess(parsed);
-            return;
-          }
-        } catch (e) {
-          localStorage.removeItem('helpriders_session');
-        }
-      }
-
-      // 2. Fallback to check active Supabase Auth session
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session && session.user) {
+          // Valid Supabase session — fetch profile and auto-login
           const { data: profile } = await supabase
             .from('profiles')
             .select('mobile, name, level')
             .eq('id', session.user.id)
             .maybeSingle();
 
-          completeLoginFlow(session.user, profile?.mobile || '', profile?.name || session.user.user_metadata?.full_name || '', profile?.level || 'Rookie Rider');
+          const userData = {
+            uid: session.user.id,
+            phone: profile?.mobile || '',
+            email: session.user.email,
+            authenticated: true,
+            level: profile?.level || 'Rookie Rider',
+            joined: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+            displayName: profile?.name || session.user.user_metadata?.full_name || session.user.email.split('@')[0],
+          };
+          localStorage.setItem('helpriders_session', JSON.stringify(userData));
+          onLoginSuccess(userData);
+          return;
         }
       } catch (err) {
-        console.warn('Supabase session check failed:', err.message);
+        console.warn('Session check failed:', err.message);
       }
+
+      // No valid Supabase session — clear any stale local data
+      localStorage.removeItem('helpriders_session');
+      setSessionChecked(true);
     };
 
     checkActiveSession();
@@ -66,11 +121,21 @@ export default function LoginScreen({ onLoginSuccess }) {
       interval = setInterval(() => {
         setTimer((t) => t - 1);
       }, 1000);
-    } else if (timer === 0 && interval) {
-      clearInterval(interval);
     }
-    return () => clearInterval(interval);
+    return () => { if (interval) clearInterval(interval); };
   }, [flowState, timer]);
+
+  // Don't render login form until session check is done
+  if (!sessionChecked) {
+    return (
+      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0d12' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: '36px', height: '36px', border: '3px solid transparent', borderTopColor: '#ff5500', borderRadius: '50%', animation: 'dash 1s linear infinite', margin: '0 auto 12px' }} />
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // ─── SIGN IN ────────────────────────────────────────────
   const handleSignIn = async (e) => {
@@ -210,7 +275,6 @@ export default function LoginScreen({ onLoginSuccess }) {
       setOtpValues(['', '', '', '', '', '']);
       setTimeout(() => otpRefs[0].current?.focus(), 200);
     } catch (err) {
-      console.warn('Sign-up OTP send failed:', err.message);
       setError(err.message || 'Failed to send verification code. Please try again.');
       setLoading(false);
     }
@@ -224,14 +288,12 @@ export default function LoginScreen({ onLoginSuccess }) {
     setOtpValues(newOtp);
     setError('');
 
-    // Auto-focus next field
     if (value && index < 5) {
       otpRefs[index + 1].current?.focus();
     }
 
-    // Auto-submit on final digit
     if (index === 5 && value) {
-      const enteredCode = newOtp.map((v, i) => i === 5 ? value : v).join('');
+      const enteredCode = newOtp.join('');
       verifyOtpCode(enteredCode);
     }
   };
@@ -242,23 +304,18 @@ export default function LoginScreen({ onLoginSuccess }) {
     }
   };
 
-  // Handle paste of full OTP code
   const handleOtpPaste = (e) => {
     e.preventDefault();
     const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
     if (pastedData.length > 0) {
-      const newOtp = [...otpValues];
+      const newOtp = ['', '', '', '', '', ''];
       for (let i = 0; i < 6; i++) {
         newOtp[i] = pastedData[i] || '';
       }
       setOtpValues(newOtp);
-      
-      // Focus the next empty field or the last field
       const nextEmpty = newOtp.findIndex(v => !v);
       const focusIndex = nextEmpty === -1 ? 5 : nextEmpty;
       otpRefs[focusIndex].current?.focus();
-
-      // Auto-submit if all 6 digits pasted
       if (pastedData.length === 6) {
         verifyOtpCode(pastedData);
       }
@@ -280,7 +337,7 @@ export default function LoginScreen({ onLoginSuccess }) {
       const { data, error: verifyError } = await supabase.auth.verifyOtp({
         email: cleanEmail,
         token: enteredCode,
-        type: flowState === 'FORGOT_OTP' ? 'email' : 'email'
+        type: 'email'
       });
 
       if (verifyError) {
@@ -293,14 +350,11 @@ export default function LoginScreen({ onLoginSuccess }) {
 
       if (data.session && data.user) {
         if (flowState === 'FORGOT_OTP') {
-          // Forgot password flow → go to reset password
           setSuccessMsg('✅ Email verified! Now set your new password.');
           setFlowState('RESET_PASSWORD');
           setNewPassword('');
           setLoading(false);
         } else {
-          // Sign-up flow → go to create password step
-          // The user is now authenticated via OTP, but we want them to set a password
           setSuccessMsg('✅ Email verified successfully! Now create your account password.');
           setFlowState('CREATE_PASSWORD');
           setNewPassword('');
@@ -330,8 +384,6 @@ export default function LoginScreen({ onLoginSuccess }) {
     setLoading(true);
 
     try {
-      // The user is already authenticated via OTP session
-      // Update their password using the active session
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword
       });
@@ -342,11 +394,9 @@ export default function LoginScreen({ onLoginSuccess }) {
         return;
       }
 
-      // Get the current user from session
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
-        // Insert or upsert profile record
         const { error: profileError } = await supabase
           .from('profiles')
           .upsert({
@@ -503,73 +553,9 @@ export default function LoginScreen({ onLoginSuccess }) {
     onLoginSuccess(userData);
   };
 
-  // ─── Input Field Component ────────────────────────────
-  const InputField = ({ icon: Icon, type = 'text', placeholder, value, onChange, required = true, rightElement }) => (
-    <div style={{ position: 'relative', width: '100%' }}>
-      <Icon size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', zIndex: 1 }} />
-      <input
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        style={{
-          width: '100%',
-          paddingLeft: '44px',
-          paddingRight: rightElement ? '44px' : '14px',
-          fontSize: '14px',
-          background: '#1c1c24',
-          color: 'white',
-          height: '48px',
-          borderRadius: '12px',
-          border: '1px solid rgba(255,255,255,0.08)',
-          outline: 'none',
-          transition: 'border-color 0.2s',
-          boxSizing: 'border-box'
-        }}
-        onFocus={(e) => e.target.style.borderColor = 'rgba(255, 85, 0, 0.4)'}
-        onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.08)'}
-        required={required}
-      />
-      {rightElement}
-    </div>
-  );
-
-  // ─── OTP Input Grid Component ─────────────────────────
-  const OtpInputGrid = () => (
-    <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', margin: '8px 0' }}>
-      {otpValues.map((digit, idx) => (
-        <input
-          key={idx}
-          ref={otpRefs[idx]}
-          type="text"
-          pattern="[0-9]*"
-          inputMode="numeric"
-          maxLength={1}
-          value={digit}
-          onChange={(e) => handleOtpChange(idx, e.target.value)}
-          onKeyDown={(e) => handleKeyDown(idx, e)}
-          onPaste={idx === 0 ? handleOtpPaste : undefined}
-          style={{
-            width: '46px',
-            height: '54px',
-            textAlign: 'center',
-            fontSize: '20px',
-            fontWeight: '800',
-            color: 'white',
-            fontFamily: 'var(--font-display)',
-            border: digit ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
-            boxShadow: digit ? '0 0 12px rgba(255, 85, 0, 0.2)' : 'none',
-            background: '#121217',
-            borderRadius: '12px',
-            outline: 'none',
-            transition: 'all 0.2s',
-            boxSizing: 'border-box'
-          }}
-        />
-      ))}
-    </div>
-  );
-
+  /* ═══════════════════════════════════════════════════════
+     RENDER
+     ═══════════════════════════════════════════════════════ */
   return (
     <div className="login-screen scroll-y" style={{ height: '100%', padding: '30px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: 'linear-gradient(180deg, #0d0d12 0%, #050508 100%)', overflow: 'auto' }}>
       
@@ -611,13 +597,8 @@ export default function LoginScreen({ onLoginSuccess }) {
             <button
               onClick={() => { setFlowState('SIGN_IN'); setError(''); setSuccessMsg(''); }}
               style={{
-                flex: 1,
-                padding: '10px 12px',
-                fontSize: '13px',
-                fontWeight: 'bold',
-                borderRadius: '10px',
-                border: 'none',
-                cursor: 'pointer',
+                flex: 1, padding: '10px 12px', fontSize: '13px', fontWeight: 'bold',
+                borderRadius: '10px', border: 'none', cursor: 'pointer',
                 background: flowState === 'SIGN_IN' ? 'var(--primary)' : 'transparent',
                 color: flowState === 'SIGN_IN' ? 'white' : 'var(--text-secondary)',
                 transition: 'all 0.25s ease'
@@ -628,13 +609,8 @@ export default function LoginScreen({ onLoginSuccess }) {
             <button
               onClick={() => { setFlowState('SIGN_UP'); setError(''); setSuccessMsg(''); }}
               style={{
-                flex: 1,
-                padding: '10px 12px',
-                fontSize: '13px',
-                fontWeight: 'bold',
-                borderRadius: '10px',
-                border: 'none',
-                cursor: 'pointer',
+                flex: 1, padding: '10px 12px', fontSize: '13px', fontWeight: 'bold',
+                borderRadius: '10px', border: 'none', cursor: 'pointer',
                 background: flowState === 'SIGN_UP' ? 'var(--primary)' : 'transparent',
                 color: flowState === 'SIGN_UP' ? 'white' : 'var(--text-secondary)',
                 transition: 'all 0.25s ease'
@@ -655,38 +631,45 @@ export default function LoginScreen({ onLoginSuccess }) {
               </p>
             </div>
 
-            <InputField
-              icon={Mail}
-              type="email"
-              placeholder="Email Address"
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); setError(''); }}
-            />
+            {/* Email */}
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Mail size={16} style={iconAbsStyle} />
+              <input
+                type="email"
+                placeholder="Email Address"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                style={inputStyle}
+                required
+              />
+            </div>
 
-            <InputField
-              icon={Lock}
-              type={showPassword ? "text" : "password"}
-              placeholder="Password"
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setError(''); }}
-              rightElement={
-                <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              }
-            />
+            {/* Password */}
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Lock size={16} style={iconAbsStyle} />
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                style={inputStyleWithRight}
+                required
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setRememberMe(!rememberMe)}>
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={() => {}}
-                style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
-              />
+              <input type="checkbox" checked={rememberMe} onChange={() => {}} style={{ cursor: 'pointer', accentColor: 'var(--primary)' }} />
               <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>Remember my session</span>
             </div>
 
@@ -694,18 +677,12 @@ export default function LoginScreen({ onLoginSuccess }) {
               {loading ? (
                 <div style={{ width: '18px', height: '18px', border: '3px solid transparent', borderTopColor: '#fff', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
               ) : (
-                <>
-                  Sign In <ArrowRight size={16} />
-                </>
+                <>Sign In <ArrowRight size={16} /></>
               )}
             </button>
 
             <div style={{ textAlign: 'center', fontSize: '12px' }}>
-              <button 
-                type="button"
-                onClick={handleForgotPassword} 
-                style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
-              >
+              <button type="button" onClick={handleForgotPassword} style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
                 Forgot Password? Recover with Email OTP
               </button>
             </div>
@@ -717,48 +694,37 @@ export default function LoginScreen({ onLoginSuccess }) {
           <form onSubmit={handleSignUp} className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
               <h3 style={{ fontSize: '16px', color: 'var(--text-primary)', marginBottom: '4px' }}>Register New Biker Account</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '11.5px', margin: 0 }}>
-                Verify with Email OTP, then set your password.
-              </p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '11.5px', margin: 0 }}>Verify with Email OTP, then set your password.</p>
             </div>
 
-            <InputField
-              icon={User}
-              placeholder="Full Name"
-              value={fullName}
-              onChange={(e) => { setFullName(e.target.value); setError(''); }}
-            />
+            {/* Full Name */}
+            <div style={{ position: 'relative', width: '100%' }}>
+              <User size={16} style={iconAbsStyle} />
+              <input type="text" placeholder="Full Name" value={fullName} onChange={(e) => { setFullName(e.target.value); setError(''); }} onFocus={handleFocus} onBlur={handleBlur} style={inputStyle} required />
+            </div>
 
-            <InputField
-              icon={Mail}
-              type="email"
-              placeholder="Email Address"
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); setError(''); }}
-            />
+            {/* Email */}
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Mail size={16} style={iconAbsStyle} />
+              <input type="email" placeholder="Email Address" value={email} onChange={(e) => { setEmail(e.target.value); setError(''); }} onFocus={handleFocus} onBlur={handleBlur} style={inputStyle} required />
+            </div>
 
-            <InputField
-              icon={Phone}
-              type="tel"
-              placeholder="Mobile Number (e.g. 9876543210)"
-              value={mobileNumber}
-              onChange={(e) => { setMobileNumber(e.target.value.replace(/\D/g, '')); setError(''); }}
-            />
+            {/* Mobile */}
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Phone size={16} style={iconAbsStyle} />
+              <input type="tel" placeholder="Mobile Number (e.g. 9876543210)" value={mobileNumber} onChange={(e) => { setMobileNumber(e.target.value.replace(/\D/g, '')); setError(''); }} onFocus={handleFocus} onBlur={handleBlur} style={inputStyle} required />
+            </div>
 
             <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', padding: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               {loading ? (
                 <div style={{ width: '18px', height: '18px', border: '3px solid transparent', borderTopColor: '#fff', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
               ) : (
-                <>
-                  Send Verification Code <Mail size={16} /> <ArrowRight size={16} />
-                </>
+                <>Send Verification Code <Mail size={16} /> <ArrowRight size={16} /></>
               )}
             </button>
 
             <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                📧 A 6-digit OTP will be sent to your email address
-              </p>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0' }}>📧 A 6-digit OTP will be sent to your email address</p>
             </div>
           </form>
         )}
@@ -774,45 +740,52 @@ export default function LoginScreen({ onLoginSuccess }) {
               </p>
             </div>
 
-            <OtpInputGrid />
+            {/* OTP Boxes — rendered inline, NOT as a sub-component */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', margin: '8px 0' }}>
+              {otpValues.map((digit, idx) => (
+                <input
+                  key={idx}
+                  ref={otpRefs[idx]}
+                  type="text"
+                  pattern="[0-9]*"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleOtpChange(idx, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(idx, e)}
+                  onPaste={idx === 0 ? handleOtpPaste : undefined}
+                  style={otpBoxStyle(!!digit)}
+                />
+              ))}
+            </div>
 
             {loading && (
               <div style={{ textAlign: 'center' }}>
                 <div style={{ width: '24px', height: '24px', border: '3px solid transparent', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'dash 1s linear infinite', margin: '0 auto' }} />
-                <p style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '8px' }}>Verifying with Supabase...</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '8px' }}>Verifying...</p>
               </div>
             )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-              <button 
-                type="button"
-                onClick={() => { setFlowState('SIGN_UP'); setError(''); setSuccessMsg(''); }}
-                style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', borderBottom: '1px dashed rgba(255,255,255,0.3)', padding: 0, fontSize: '12px' }}
-              >
+              <button type="button" onClick={() => { setFlowState('SIGN_UP'); setError(''); setSuccessMsg(''); }} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', borderBottom: '1px dashed rgba(255,255,255,0.3)', padding: 0, fontSize: '12px' }}>
                 ← Back
               </button>
-
               {timer > 0 ? (
                 <span style={{ color: 'var(--text-muted)' }}>Resend in {timer}s</span>
               ) : (
-                <button 
-                  type="button"
-                  onClick={handleResendOtp}
-                  disabled={loading}
-                  style={{ color: 'var(--primary)', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}
-                >
+                <button type="button" onClick={handleResendOtp} disabled={loading} style={{ color: 'var(--primary)', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}>
                   Resend Code
                 </button>
               )}
             </div>
 
             <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '10px 12px', fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-              💡 <strong>Tip:</strong> Check your inbox & spam folder. You can also paste the full code directly into the first box.
+              💡 <strong>Tip:</strong> Check your inbox & spam folder. You can also paste the full code.
             </div>
           </div>
         )}
 
-        {/* ═══════ FLOW D: FORGOT_OTP (Password Recovery) ═══════ */}
+        {/* ═══════ FLOW D: FORGOT_OTP ═══════ */}
         {flowState === 'FORGOT_OTP' && (
           <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
@@ -823,33 +796,39 @@ export default function LoginScreen({ onLoginSuccess }) {
               </p>
             </div>
 
-            <OtpInputGrid />
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', margin: '8px 0' }}>
+              {otpValues.map((digit, idx) => (
+                <input
+                  key={idx}
+                  ref={otpRefs[idx]}
+                  type="text"
+                  pattern="[0-9]*"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleOtpChange(idx, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(idx, e)}
+                  onPaste={idx === 0 ? handleOtpPaste : undefined}
+                  style={otpBoxStyle(!!digit)}
+                />
+              ))}
+            </div>
 
             {loading && (
               <div style={{ textAlign: 'center' }}>
                 <div style={{ width: '24px', height: '24px', border: '3px solid transparent', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'dash 1s linear infinite', margin: '0 auto' }} />
-                <p style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '8px' }}>Verifying recovery code...</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '8px' }}>Verifying...</p>
               </div>
             )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-              <button 
-                type="button"
-                onClick={() => { setFlowState('SIGN_IN'); setError(''); setSuccessMsg(''); }}
-                style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', borderBottom: '1px dashed rgba(255,255,255,0.3)', padding: 0, fontSize: '12px' }}
-              >
+              <button type="button" onClick={() => { setFlowState('SIGN_IN'); setError(''); setSuccessMsg(''); }} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', borderBottom: '1px dashed rgba(255,255,255,0.3)', padding: 0, fontSize: '12px' }}>
                 ← Back to Sign In
               </button>
-
               {timer > 0 ? (
                 <span style={{ color: 'var(--text-muted)' }}>Resend in {timer}s</span>
               ) : (
-                <button 
-                  type="button"
-                  onClick={handleResendOtp}
-                  disabled={loading}
-                  style={{ color: 'var(--primary)', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}
-                >
+                <button type="button" onClick={handleResendOtp} disabled={loading} style={{ color: 'var(--primary)', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}>
                   Resend Code
                 </button>
               )}
@@ -857,7 +836,7 @@ export default function LoginScreen({ onLoginSuccess }) {
           </div>
         )}
 
-        {/* ═══════ FLOW E: CREATE_PASSWORD (after sign-up OTP) ═══════ */}
+        {/* ═══════ FLOW E: CREATE_PASSWORD ═══════ */}
         {flowState === 'CREATE_PASSWORD' && (
           <form onSubmit={handleCreatePassword} className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
@@ -870,24 +849,23 @@ export default function LoginScreen({ onLoginSuccess }) {
               </p>
             </div>
 
-            <InputField
-              icon={Lock}
-              type={showPassword ? "text" : "password"}
-              placeholder="Create Account Password (min 6 chars)"
-              value={newPassword}
-              onChange={(e) => { setNewPassword(e.target.value); setError(''); }}
-              rightElement={
-                <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              }
-            />
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Lock size={16} style={iconAbsStyle} />
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Create Account Password (min 6 chars)"
+                value={newPassword}
+                onChange={(e) => { setNewPassword(e.target.value); setError(''); }}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                style={inputStyleWithRight}
+                required
+              />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}>
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
 
-            {/* Password strength indicator */}
             {newPassword && (
               <div style={{ display: 'flex', gap: '4px', height: '3px' }}>
                 <div style={{ flex: 1, borderRadius: '2px', background: newPassword.length >= 2 ? (newPassword.length >= 8 ? '#22c55e' : newPassword.length >= 6 ? '#f59e0b' : '#ef4444') : 'rgba(255,255,255,0.1)', transition: 'background 0.3s' }} />
@@ -900,15 +878,13 @@ export default function LoginScreen({ onLoginSuccess }) {
               {loading ? (
                 <div style={{ width: '18px', height: '18px', border: '3px solid transparent', borderTopColor: '#fff', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
               ) : (
-                <>
-                  Complete Registration <ArrowRight size={16} />
-                </>
+                <>Complete Registration <ArrowRight size={16} /></>
               )}
             </button>
           </form>
         )}
 
-        {/* ═══════ FLOW F: RESET_PASSWORD (after forgot OTP) ═══════ */}
+        {/* ═══════ FLOW F: RESET_PASSWORD ═══════ */}
         {flowState === 'RESET_PASSWORD' && (
           <form onSubmit={handleResetPassword} className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
@@ -921,22 +897,22 @@ export default function LoginScreen({ onLoginSuccess }) {
               </p>
             </div>
 
-            <InputField
-              icon={Lock}
-              type={showPassword ? "text" : "password"}
-              placeholder="New Password (min 6 chars)"
-              value={newPassword}
-              onChange={(e) => { setNewPassword(e.target.value); setError(''); }}
-              rightElement={
-                <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              }
-            />
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Lock size={16} style={iconAbsStyle} />
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="New Password (min 6 chars)"
+                value={newPassword}
+                onChange={(e) => { setNewPassword(e.target.value); setError(''); }}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                style={inputStyleWithRight}
+                required
+              />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}>
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
 
             {newPassword && (
               <div style={{ display: 'flex', gap: '4px', height: '3px' }}>
@@ -950,9 +926,7 @@ export default function LoginScreen({ onLoginSuccess }) {
               {loading ? (
                 <div style={{ width: '18px', height: '18px', border: '3px solid transparent', borderTopColor: '#fff', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
               ) : (
-                <>
-                  Save New Password <ArrowRight size={16} />
-                </>
+                <>Save New Password <ArrowRight size={16} /></>
               )}
             </button>
           </form>
