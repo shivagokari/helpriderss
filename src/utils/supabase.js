@@ -1,8 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-// TODO: Replace these placeholder credentials with your actual project keys from Supabase:
-// Project Settings (Gear icon) -> API -> Project URL and Project API Key (anon / public)
-const supabaseUrl = 'https://YOUR_PROJECT_ID.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.YOUR_ANON_PUBLIC_KEY';
+const supabaseUrl = 'https://dssezlmepxplwdicyjvq.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzc2V6bG1lcHhwbHdkaWN5anZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NjE0OTIsImV4cCI6MjA5NTUzNzQ5Mn0.qUDpVo-VLp1GY4bzpimN8RkJjHrCNeBiTXg2v0XMWHc';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);

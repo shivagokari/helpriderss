@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Phone, Lock, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, Flame, Compass, Mail } from 'lucide-react';
+import { supabase } from '../utils/supabase';
 
 export default function LoginScreen({ onLoginSuccess }) {
   // Flow states: 'SIGN_IN' | 'SIGN_UP' | 'OTP_VERIFY' | 'CREATE_PASSWORD'
@@ -19,46 +20,42 @@ export default function LoginScreen({ onLoginSuccess }) {
 
   const otpRefs = [useRef(null), useRef(null), useRef(null), useRef(null)];
 
-  // Seed default registered users in localStorage if they don't exist
-  const getRegisteredUsers = () => {
-    const users = localStorage.getItem('helpriders_email_users');
-    if (users) {
-      try {
-        return JSON.parse(users);
-      } catch (e) {
-        return {};
-      }
-    }
-    // Default demo user seed
-    const defaultUsers = {
-      'biker@helpriderss.com': {
-        email: 'biker@helpriderss.com',
-        mobile: '+91 98765 43210',
-        password: 'rider123'
-      }
-    };
-    localStorage.setItem('helpriders_email_users', JSON.stringify(defaultUsers));
-    return defaultUsers;
-  };
-
-  const [registeredUsers, setRegisteredUsers] = useState(getRegisteredUsers());
-
   // Auto-login check on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem('helpriders_session');
-    if (savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser);
-        if (parsed && parsed.authenticated) {
-          setLoading(true);
-          setTimeout(() => {
+    const checkActiveSession = async () => {
+      // 1. Check local session storage first
+      const savedUser = localStorage.getItem('helpriders_session');
+      if (savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          if (parsed && parsed.authenticated) {
             onLoginSuccess(parsed);
-          }, 800);
+            return;
+          }
+        } catch (e) {
+          localStorage.removeItem('helpriders_session');
         }
-      } catch (e) {
-        localStorage.removeItem('helpriders_session');
       }
-    }
+
+      // 2. Fallback to check active Supabase Auth session
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session && session.user) {
+          // Fetch their profile information
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('mobile, level')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          completeLoginFlow(session.user, profile?.mobile || '+91 98765 43210', profile?.level || 'Rookie Rider');
+        }
+      } catch (err) {
+        console.warn('Supabase session check failed:', err.message);
+      }
+    };
+
+    checkActiveSession();
   }, [onLoginSuccess]);
 
   // Countdown timer for OTP resend
@@ -74,8 +71,8 @@ export default function LoginScreen({ onLoginSuccess }) {
     return () => clearInterval(interval);
   }, [flowState, timer]);
 
-  // 1. Sign In handler
-  const handleSignIn = (e) => {
+  // 1. Sign In handler (Supabase Authentication)
+  const handleSignIn = async (e) => {
     e.preventDefault();
     if (!email || !password) {
       setError('Please fill in all fields');
@@ -84,24 +81,42 @@ export default function LoginScreen({ onLoginSuccess }) {
     setError('');
     setLoading(true);
 
-    setTimeout(() => {
-      setLoading(false);
+    try {
       const cleanEmail = email.trim().toLowerCase();
-      const userRecord = registeredUsers[cleanEmail];
+      
+      // Perform Supabase email/password sign-in
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: password
+      });
 
-      if (userRecord && userRecord.password === password) {
-        // Login success
-        completeLoginFlow(cleanEmail, userRecord);
-      } else if (userRecord) {
-        setError('Incorrect password. Please try again.');
-      } else {
-        setError('Email not found. Please register via the Sign Up tab.');
+      if (signInError) {
+        setError(signInError.message);
+        setLoading(false);
+        return;
       }
-    }, 1000);
+
+      if (data.user) {
+        // Fetch profile to get mobile number and rank details
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('mobile, level')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        completeLoginFlow(data.user, profile?.mobile || '+91 98765 43210', profile?.level || 'Rookie Rider');
+      } else {
+        setError('Login failed. Please verify your Supabase credentials.');
+        setLoading(false);
+      }
+    } catch (err) {
+      setError(err.message || 'An unexpected error occurred during sign in.');
+      setLoading(false);
+    }
   };
 
-  // 2. Sign Up handler
-  const handleSignUp = (e) => {
+  // 2. Sign Up handler (Check email uniqueness using public profiles)
+  const handleSignUp = async (e) => {
     e.preventDefault();
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !mobileNumber) {
@@ -119,19 +134,35 @@ export default function LoginScreen({ onLoginSuccess }) {
     setError('');
     setLoading(true);
 
-    setTimeout(() => {
-      setLoading(false);
-      if (registeredUsers[cleanEmail]) {
+    try {
+      // Query profiles table to check if user already exists
+      const { data: profile, error: profileErr } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('email', cleanEmail)
+        .maybeSingle();
+
+      if (profile) {
         setError('This email is already registered. Please Sign In.');
+        setLoading(false);
         return;
       }
-      
-      // Proceed to verify email via simulated OTP
+
+      setLoading(false);
+      // Proceed to email OTP verification simulation
       setFlowState('OTP_VERIFY');
       setTimer(30);
       setOtpValues(['', '', '', '']);
       setTimeout(() => otpRefs[0].current?.focus(), 100);
-    }, 1200);
+    } catch (err) {
+      console.warn('Database profiles check failed, bypassing check:', err.message);
+      setLoading(false);
+      // Fallback: proceed to verification anyway
+      setFlowState('OTP_VERIFY');
+      setTimer(30);
+      setOtpValues(['', '', '', '']);
+      setTimeout(() => otpRefs[0].current?.focus(), 100);
+    }
   };
 
   // 3. OTP verification digits input handler
@@ -178,8 +209,8 @@ export default function LoginScreen({ onLoginSuccess }) {
     }, 1000);
   };
 
-  // 4. Create Password submit handler
-  const handleCreatePassword = (e) => {
+  // 4. Create Password submit handler (Supabase Authentication Sign Up)
+  const handleCreatePassword = async (e) => {
     e.preventDefault();
     if (newPassword.length < 6) {
       setError('Password must be at least 6 characters long');
@@ -188,35 +219,71 @@ export default function LoginScreen({ onLoginSuccess }) {
     setError('');
     setLoading(true);
 
-    setTimeout(() => {
-      setLoading(false);
+    try {
       const cleanEmail = email.trim().toLowerCase();
       
-      // Save new user credentials locally
-      const userRecord = {
+      // 1. Create User inside Supabase Authentication
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email: cleanEmail,
-        mobile: mobileNumber,
-        password: newPassword
-      };
-      
-      const updatedUsers = { ...registeredUsers, [cleanEmail]: userRecord };
-      setRegisteredUsers(updatedUsers);
-      localStorage.setItem('helpriders_email_users', JSON.stringify(updatedUsers));
+        password: newPassword,
+        options: {
+          data: {
+            mobile: mobileNumber
+          }
+        }
+      });
 
-      // Successfully sign in
-      completeLoginFlow(cleanEmail, userRecord);
-    }, 1000);
+      if (signUpError) {
+        setError(signUpError.message);
+        setLoading(false);
+        return;
+      }
+
+      const user = data.user;
+      if (user) {
+        // 2. Insert profile record into public.profiles
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            email: cleanEmail,
+            mobile: mobileNumber,
+            level: 'Rookie Rider'
+          });
+
+        if (profileError) {
+          console.error('Failed to create public profiles record:', profileError.message);
+          // Proceed anyway in case profile table wasn't created yet or RLS policy blocked it
+        }
+
+        // Check if session returned (if email verification is disabled in Supabase console)
+        if (data.session) {
+          completeLoginFlow(user, mobileNumber, 'Rookie Rider');
+        } else {
+          setLoading(false);
+          setFlowState('SIGN_IN');
+          setError('Account registered! Verification email sent. Please check your inbox and verify your email to log in.');
+        }
+      } else {
+        setError('Registration failed. Please check your Supabase configurations.');
+        setLoading(false);
+      }
+    } catch (err) {
+      setError(err.message || 'An unexpected error occurred during signup.');
+      setLoading(false);
+    }
   };
 
   // Finish verification and login
-  const completeLoginFlow = (emailAddress, userRecord) => {
+  const completeLoginFlow = (user, mobile, level = 'Rookie Rider') => {
     const userData = {
-      phone: userRecord.mobile || '+91 98765 43210',
-      email: emailAddress,
+      uid: user.id,
+      phone: mobile,
+      email: user.email,
       authenticated: true,
-      level: 'Rookie Rider',
+      level: level,
       joined: 'May 2026',
-      displayName: emailAddress.split('@')[0],
+      displayName: user.email.split('@')[0],
     };
     
     if (rememberMe) {
