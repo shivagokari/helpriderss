@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Phone, Lock, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, Flame, Compass, Mail } from 'lucide-react';
+import { Phone, Lock, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, Flame, Compass, Mail, User } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 
 export default function LoginScreen({ onLoginSuccess }) {
   // Flow states: 'SIGN_IN' | 'SIGN_UP' | 'OTP_VERIFY' | 'CREATE_PASSWORD'
   const [flowState, setFlowState] = useState('SIGN_IN');
   
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
   const [password, setPassword] = useState('');
@@ -44,11 +45,11 @@ export default function LoginScreen({ onLoginSuccess }) {
           // Fetch their profile information
           const { data: profile } = await supabase
             .from('profiles')
-            .select('mobile, level')
+            .select('mobile, name, level')
             .eq('id', session.user.id)
             .maybeSingle();
 
-          completeLoginFlow(session.user, profile?.mobile || '+91 98765 43210', profile?.level || 'Rookie Rider');
+          completeLoginFlow(session.user, profile?.mobile || '+91 98765 43210', profile?.name || session.user.user_metadata?.full_name || '', profile?.level || 'Rookie Rider');
         }
       } catch (err) {
         console.warn('Supabase session check failed:', err.message);
@@ -100,11 +101,11 @@ export default function LoginScreen({ onLoginSuccess }) {
         // Fetch profile to get mobile number and rank details
         const { data: profile } = await supabase
           .from('profiles')
-          .select('mobile, level')
+          .select('mobile, name, level')
           .eq('id', data.user.id)
           .maybeSingle();
 
-        completeLoginFlow(data.user, profile?.mobile || '+91 98765 43210', profile?.level || 'Rookie Rider');
+        completeLoginFlow(data.user, profile?.mobile || '+91 98765 43210', profile?.name || data.user.user_metadata?.full_name || '', profile?.level || 'Rookie Rider');
       } else {
         setError('Login failed. Please verify your Supabase credentials.');
         setLoading(false);
@@ -119,8 +120,8 @@ export default function LoginScreen({ onLoginSuccess }) {
   const handleSignUp = async (e) => {
     e.preventDefault();
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !mobileNumber) {
-      setError('Please enter both email and mobile number');
+    if (!cleanEmail || !mobileNumber || !fullName) {
+      setError('Please enter your Name, Email, and Mobile Number');
       return;
     }
     if (mobileNumber.replace(/\D/g, '').length < 8) {
@@ -228,7 +229,8 @@ export default function LoginScreen({ onLoginSuccess }) {
         password: newPassword,
         options: {
           data: {
-            mobile: mobileNumber
+            mobile: mobileNumber,
+            full_name: fullName
           }
         }
       });
@@ -248,6 +250,7 @@ export default function LoginScreen({ onLoginSuccess }) {
             id: user.id,
             email: cleanEmail,
             mobile: mobileNumber,
+            name: fullName,
             level: 'Rookie Rider'
           });
 
@@ -258,7 +261,7 @@ export default function LoginScreen({ onLoginSuccess }) {
 
         // Check if session returned (if email verification is disabled in Supabase console)
         if (data.session) {
-          completeLoginFlow(user, mobileNumber, 'Rookie Rider');
+          completeLoginFlow(user, mobileNumber, fullName, 'Rookie Rider');
         } else {
           setLoading(false);
           setFlowState('SIGN_IN');
@@ -275,7 +278,7 @@ export default function LoginScreen({ onLoginSuccess }) {
   };
 
   // Finish verification and login
-  const completeLoginFlow = (user, mobile, level = 'Rookie Rider') => {
+  const completeLoginFlow = (user, mobile, name, level = 'Rookie Rider') => {
     const userData = {
       uid: user.id,
       phone: mobile,
@@ -283,7 +286,7 @@ export default function LoginScreen({ onLoginSuccess }) {
       authenticated: true,
       level: level,
       joined: 'May 2026',
-      displayName: user.email.split('@')[0],
+      displayName: name || user.email.split('@')[0],
     };
     
     if (rememberMe) {
@@ -481,6 +484,18 @@ export default function LoginScreen({ onLoginSuccess }) {
               <p style={{ color: 'var(--text-secondary)', fontSize: '11.5px' }}>
                 Verify with Email OTP, configure password, then setup your profile.
               </p>
+            </div>
+
+            <div style={{ position: 'relative' }}>
+              <User size={16} style={{ position: 'absolute', left: '14px', top: '15px', color: 'var(--text-muted)' }} />
+              <input
+                type="text"
+                placeholder="Full Name"
+                value={fullName}
+                onChange={(e) => { setFullName(e.target.value); setError(''); }}
+                style={{ width: '100%', paddingLeft: '44px', fontSize: '14px', background: '#1c1c24', color: 'white', height: '46px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}
+                required
+              />
             </div>
 
             <div style={{ position: 'relative' }}>
