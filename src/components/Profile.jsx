@@ -290,6 +290,55 @@ export default function Profile({ user, onLogout, rides }) {
         }
       }
 
+      // Auto-seed testing accounts dynamically on search if missing from database
+      const testAccountsMap = {
+        'HR-22000': { email: 'test22@helpriders.com', password: 'testing22', name: 'Rider TwentyTwo', mobile: '+91 99999 22222' },
+        'HR-24000': { email: 'test24@helpriders.com', password: 'testing24', name: 'Rider TwentyFour', mobile: '+91 99999 24242' },
+        'HR-26000': { email: 'test26@helpriders.com', password: 'testing26', name: 'Rider TwentySix', mobile: '+91 99999 26262' },
+        'HR-28000': { email: 'test28@helpriders.com', password: 'testing28', name: 'Rider TwentyEight', mobile: '+91 99999 28282' },
+        'HR-30000': { email: 'test30@helpriders.com', password: 'testing30', name: 'Rider Thirty', mobile: '+91 99999 30303' }
+      };
+
+      if (!data && testAccountsMap[query]) {
+        const targetAcc = testAccountsMap[query];
+        try {
+          const { data: signUpData } = await supabase.auth.signUp({
+            email: targetAcc.email,
+            password: targetAcc.password,
+            options: {
+              data: {
+                mobile: targetAcc.mobile,
+                full_name: targetAcc.name
+              }
+            }
+          });
+
+          if (signUpData && signUpData.user) {
+            await supabase.from('profiles').insert({
+              id: signUpData.user.id,
+              email: targetAcc.email,
+              mobile: targetAcc.mobile,
+              name: targetAcc.name,
+              level: 'Rookie Rider',
+              unique_id: query
+            });
+
+            // Re-fetch profile
+            const { data: refetched } = await supabase
+              .from('profiles')
+              .select('id, name, email, unique_id, level, garage')
+              .eq('unique_id', query)
+              .maybeSingle();
+
+            if (refetched) {
+              data = refetched;
+            }
+          }
+        } catch (seedErr) {
+          console.warn(`Failed to dynamically seed test account ${query} on search:`, seedErr);
+        }
+      }
+
       if (data) {
         const isBlocked = blocked.some(b => b.unique_id === data.unique_id);
         const isFriend = friends.some(f => f.unique_id === data.unique_id);
@@ -319,6 +368,24 @@ export default function Profile({ user, onLogout, rides }) {
           email: 'admin@helpriderss.com',
           level: 'System Administrator',
           bike: 'Cruiser',
+          totalRides: 0,
+          relationship: isFriend ? 'friend' : isBlocked ? 'blocked' : isPendingIn ? 'pending_in' : isPendingOut ? 'pending_out' : 'none',
+          isMock: true
+        });
+      } else if (testAccountsMap[query]) {
+        const targetAcc = testAccountsMap[query];
+        const isBlocked = blocked.some(b => b.unique_id === query);
+        const isFriend = friends.some(f => f.unique_id === query);
+        const isPendingIn = pendingIn.some(p => p.unique_id === query);
+        const isPendingOut = pendingOut.some(p => p.unique_id === query);
+
+        setSearchResult({
+          uid: `mock-uuid-${query}`,
+          unique_id: query,
+          displayName: targetAcc.name,
+          email: targetAcc.email,
+          level: 'Rookie Rider',
+          bike: 'Unknown Bike',
           totalRides: 0,
           relationship: isFriend ? 'friend' : isBlocked ? 'blocked' : isPendingIn ? 'pending_in' : isPendingOut ? 'pending_out' : 'none',
           isMock: true
@@ -1001,7 +1068,7 @@ export default function Profile({ user, onLogout, rides }) {
             <div style={{ fontSize: '28px', marginBottom: '6px' }}>✅</div>
             <strong style={{ color: '#22c55e', fontSize: '13px', display: 'block' }}>Message Sent!</strong>
             <p style={{ color: 'var(--text-muted)', fontSize: '11px', margin: '4px 0 0' }}>Our team will contact you soon.</p>
-            <button onClick={() => { setDevSent(false); setDevName(''); setDevMobile(''); setShowDevForm(false); }} style={{ marginTop: '10px', fontSize: '11px', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
+            <button onClick={() => { setDevSent(false); setDevName(''); setDevMobile(''); setShowDevForm(true); }} style={{ marginTop: '10px', fontSize: '11px', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
               Send another message
             </button>
           </div>
@@ -1009,16 +1076,63 @@ export default function Profile({ user, onLogout, rides }) {
           <form
             onSubmit={async (e) => {
               e.preventDefault();
-              if (!devName.trim() || devMobile.replace(/\D/g, '').length < 10) {
-                showToast('⚠️ Please enter a valid name and 10-digit mobile number.');
+              
+              const cleanPhone = devMobile.replace(/\D/g, '');
+              const indianPhoneRegex = /^[6-9]\d{9}$/;
+              if (!indianPhoneRegex.test(cleanPhone)) {
+                showToast('⚠️ Please enter a valid 10-digit Indian phone number.');
                 return;
               }
+
+              if (new Set(cleanPhone).size === 1) {
+                showToast('⚠️ Repeated/fancy phone numbers are not allowed.');
+                return;
+              }
+
+              // Check local storage daily limit
+              const lastContact = localStorage.getItem('helpriders_last_dev_contact');
+              let isLimitExceeded = false;
+              if (lastContact) {
+                const timeDiff = Date.now() - parseInt(lastContact, 10);
+                if (timeDiff < 24 * 60 * 60 * 1000) {
+                  isLimitExceeded = true;
+                }
+              }
+
+              // Check database daily limit
+              if (!isLimitExceeded && user?.uid) {
+                try {
+                  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+                  const { data: recentContacts } = await supabase
+                    .from('dev_contacts')
+                    .select('created_at')
+                    .eq('user_id', user.uid)
+                    .gt('created_at', oneDayAgo);
+
+                  if (recentContacts && recentContacts.length > 0) {
+                    isLimitExceeded = true;
+                  }
+                } catch (dbErr) {
+                  console.warn('Database rate limit check failed, using local fallback:', dbErr);
+                }
+              }
+
+              if (isLimitExceeded) {
+                // Rate limit is exceeded: bypass database write but show success to the user
+                setDevSent(true);
+                showToast('📨 Your message has been sent to the developer!');
+                return;
+              }
+
               try {
                 const { error } = await supabase.from('dev_contacts').insert({
                   name: devName.trim(), mobile: devMobile.trim(),
                   email: user?.email || 'Unknown', user_id: user?.uid || null, is_read: false
                 });
                 if (error) { showToast('⚠️ Could not send message. Please try again.'); return; }
+                
+                // Save last submission timestamp
+                localStorage.setItem('helpriders_last_dev_contact', Date.now().toString());
                 setDevSent(true);
                 showToast('📨 Your message has been sent to the developer!');
               } catch { showToast('⚠️ Network error. Please try again.'); }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Phone, Lock, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, Flame, Mail, User, CheckCircle } from 'lucide-react';
+import { Phone, Lock, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, Flame, Mail, User, CheckCircle, Send, Headphones } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 
 /* ═══════════════════════════════════════════════════════════
@@ -73,6 +73,13 @@ export default function LoginScreen({ onLoginSuccess }) {
   const [successMsg, setSuccessMsg] = useState('');
   const [timer, setTimer] = useState(60);
   const [sessionChecked, setSessionChecked] = useState(false);
+
+  // Contact Developer states (for unauthenticated support)
+  const [showDevForm, setShowDevForm] = useState(false);
+  const [devSent, setDevSent] = useState(false);
+  const [devName, setDevName] = useState('');
+  const [devMobile, setDevMobile] = useState('');
+  const [devError, setDevError] = useState('');
 
   const otpRefs = [useRef(null), useRef(null), useRef(null), useRef(null), useRef(null), useRef(null)];
 
@@ -466,7 +473,38 @@ export default function LoginScreen({ onLoginSuccess }) {
         }
         localStorage.setItem('helpriders_first_login', 'true');
         completeLoginFlow(user, finalMobile, finalName, 'Rookie Rider', generatedId);
-      } else {
+      } else if (signUpData.user) {
+        const user = signUpData.user;
+        let generatedId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+        let finalName = fullName;
+        let finalMobile = formattedMobile;
+
+        const testAccounts = {
+          'test22@helpriders.com': { uniqueId: 'HR-22000', name: 'Rider TwentyTwo', mobile: '+91 99999 22222' },
+          'test24@helpriders.com': { uniqueId: 'HR-24000', name: 'Rider TwentyFour', mobile: '+91 99999 24242' },
+          'test26@helpriders.com': { uniqueId: 'HR-26000', name: 'Rider TwentySix', mobile: '+91 99999 26262' },
+          'test28@helpriders.com': { uniqueId: 'HR-28000', name: 'Rider TwentyEight', mobile: '+91 99999 28282' },
+          'test30@helpriders.com': { uniqueId: 'HR-30000', name: 'Rider Thirty', mobile: '+91 99999 30303' }
+        };
+
+        const testAcc = testAccounts[user.email.trim().toLowerCase()];
+        if (testAcc) {
+          generatedId = testAcc.uniqueId;
+          finalName = testAcc.name;
+          finalMobile = testAcc.mobile;
+        }
+
+        const { error: profileError } = await supabase.from('profiles').insert({
+          id: user.id,
+          email: cleanEmail,
+          mobile: finalMobile,
+          name: finalName,
+          level: 'Rookie Rider',
+          unique_id: generatedId
+        });
+        if (profileError) {
+          console.error('Failed to create profile on unconfirmed signup:', profileError.message);
+        }
         localStorage.setItem('helpriders_first_login', 'true');
         setSuccessMsg('✅ Account registered! Please check your email inbox to confirm your account, then sign in.');
         setFlowState('SIGN_IN');
@@ -1213,6 +1251,107 @@ export default function LoginScreen({ onLoginSuccess }) {
           </form>
         )}
 
+      </div>
+
+      {/* Contact Developer */}
+      <div className="glass-panel" style={{ padding: '16px', margin: '0 0 16px 0', border: '1px solid rgba(255,170,0,0.15)', flexShrink: 0 }}>
+        <h4 style={{ fontSize: '15px', color: 'white', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Headphones size={16} color="#ffaa00" /> Contact Developer
+        </h4>
+        <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: '1.4' }}>
+          Need help? Search Admin in the request bar after logging in, or reach out to the developer directly below.
+        </p>
+
+        {!showDevForm && !devSent ? (
+          <button 
+            type="button"
+            onClick={() => setShowDevForm(true)}
+            className="btn-primary"
+            style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #ffaa00, #ff7700)', color: 'white', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+          >
+            <Headphones size={14} /> Contact Developer
+          </button>
+        ) : devSent ? (
+          <div style={{ textAlign: 'center', padding: '16px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '12px' }}>
+            <div style={{ fontSize: '28px', marginBottom: '6px' }}>✅</div>
+            <strong style={{ color: '#22c55e', fontSize: '13px', display: 'block' }}>Message Sent!</strong>
+            <p style={{ color: 'var(--text-muted)', fontSize: '11px', margin: '4px 0 0' }}>Our team will contact you soon.</p>
+            <button type="button" onClick={() => { setDevSent(false); setDevName(''); setDevMobile(''); setShowDevForm(true); }} style={{ marginTop: '10px', fontSize: '11px', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
+              Send another message
+            </button>
+          </div>
+        ) : (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              
+              const cleanPhone = devMobile.replace(/\D/g, '');
+              const indianPhoneRegex = /^[6-9]\d{9}$/;
+              if (!indianPhoneRegex.test(cleanPhone)) {
+                setDevError('⚠️ Please enter a valid 10-digit Indian phone number.');
+                return;
+              }
+
+              if (new Set(cleanPhone).size === 1) {
+                setDevError('⚠️ Repeated/fancy phone numbers are not allowed.');
+                return;
+              }
+
+              // Check local storage daily limit
+              const lastContact = localStorage.getItem('helpriders_last_dev_contact');
+              let isLimitExceeded = false;
+              if (lastContact) {
+                const timeDiff = Date.now() - parseInt(lastContact, 10);
+                if (timeDiff < 24 * 60 * 60 * 1000) {
+                  isLimitExceeded = true;
+                }
+              }
+
+              if (isLimitExceeded) {
+                setDevSent(true);
+                return;
+              }
+
+              try {
+                const { error } = await supabase.from('dev_contacts').insert({
+                  name: devName.trim(), 
+                  mobile: devMobile.trim(),
+                  email: 'Guest User (Not Logged In)', 
+                  user_id: null, 
+                  is_read: false
+                });
+                if (error) { 
+                  setDevError('⚠️ Could not send message. Please try again.'); 
+                  return; 
+                }
+                
+                // Save last submission timestamp
+                localStorage.setItem('helpriders_last_dev_contact', Date.now().toString());
+                setDevSent(true);
+              } catch { 
+                setDevError('⚠️ Network error. Please try again.'); 
+              }
+            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
+            className="animate-zoom-in"
+          >
+            {devError && (
+              <div style={{ color: 'var(--accent)', background: 'rgba(255,34,51,0.1)', border: '1px solid rgba(255,34,51,0.2)', padding: '8px 10px', borderRadius: '8px', fontSize: '11px' }}>
+                {devError}
+              </div>
+            )}
+            <input type="text" placeholder="Your Full Name" value={devName} onChange={e => { setDevName(e.target.value); setDevError(''); }} required style={inputStyle} />
+            <input type="tel" placeholder="Working Mobile Number (10 digits)" value={devMobile} onChange={e => { setDevMobile(e.target.value.replace(/\D/g, '').slice(0, 10)); setDevError(''); }} required style={inputStyle} />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button type="button" onClick={() => setShowDevForm(false)} className="btn-secondary" style={{ flex: 1, padding: '10px', fontSize: '12px' }}>
+                Cancel
+              </button>
+              <button type="submit" style={{ flex: 2, padding: '10px', background: 'linear-gradient(135deg, #ffaa00, #ff7700)', color: 'white', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <Send size={14} /> Send to Developer
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* Footer */}

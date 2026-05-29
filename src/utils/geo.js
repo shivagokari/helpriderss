@@ -573,7 +573,31 @@ export async function getOSRMRouteDistance(coords) {
   if (!coords || coords.length < 2) return 0;
   const coordString = coords.map(c => `${c.lon},${c.lat}`).join(';');
 
-  // Try Primary OSRM Server
+  // Try OpenStreetMap Germany Bicycle Routing Server (Primary)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout limit
+    const url = `https://routing.openstreetmap.de/routed-bike/route/v1/bicycle/${coordString}?overview=false`;
+    const response = await fetch(url, { 
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'HelpridersBikerPlannerApp/2.0 (contact@helpriders.com)'
+      }
+    });
+    clearTimeout(timeoutId);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.routes && data.routes.length > 0) {
+        const distanceInMeters = data.routes[0].distance;
+        let km = Math.round(distanceInMeters / 1000);
+        return applyForestCalibrations(coords, km);
+      }
+    }
+  } catch (err) {
+    console.warn("Bicycle OSRM server failed/timed out, trying driving OSRM project server...", err);
+  }
+
+  // Try Project OSRM Driving Server (Secondary fallback)
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout limit
@@ -594,10 +618,10 @@ export async function getOSRMRouteDistance(coords) {
       }
     }
   } catch (err) {
-    console.warn("Primary OSRM server failed/timed out, trying secondary OSRM Germany server...", err);
+    console.warn("Secondary driving OSRM project server failed/timed out, trying Germany driving server...", err);
   }
 
-  // Try Secondary OSRM Germany Server (FOSSGIS)
+  // Try OSRM Germany Driving Server (Tertiary fallback)
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout limit
@@ -618,7 +642,7 @@ export async function getOSRMRouteDistance(coords) {
       }
     }
   } catch (err) {
-    console.warn("Secondary OSRM Germany server also failed, falling back to calibrated Haversine formula", err);
+    console.warn("Tertiary OSRM Germany driving server failed, falling back to calibrated Haversine formula", err);
   }
 
   // Fallback terrain-aware accumulator
