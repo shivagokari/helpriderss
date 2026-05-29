@@ -250,24 +250,32 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
   const fetchAllNotifications = async () => {
     if (!user || !user.uid) return;
 
-    // 1. Fetch Ride Join Requests from localStorage
-    const savedRides = JSON.parse(localStorage.getItem('helpriders_social_rides') || '[]');
-    const rideReqs = [];
-    savedRides.forEach(ride => {
-      const isOwner = ride.creatorEmail === user.email || (ride.creator === 'You (Host)' && !ride.creatorEmail);
-      if (isOwner && ride.joinRequests) {
-        ride.joinRequests.forEach(req => {
-          if (req.status === 'Pending') {
-            rideReqs.push({
-              ...req,
-              rideId: ride.id,
-              rideTitle: ride.title
-            });
-          }
+    // 1. Fetch Ride Join Requests from Supabase
+    try {
+      const { data: userRides, error: ridesErr } = await supabase
+        .from('rides')
+        .select('*')
+        .eq('user_id', user.uid);
+
+      if (!ridesErr && userRides) {
+        const rideReqs = [];
+        userRides.forEach(ride => {
+          const requests = Array.isArray(ride.join_requests) ? ride.join_requests : JSON.parse(ride.join_requests || '[]');
+          requests.forEach(req => {
+            if (req.status === 'Pending') {
+              rideReqs.push({
+                ...req,
+                rideId: ride.id,
+                rideTitle: ride.title
+              });
+            }
+          });
         });
+        setPendingRideRequests(rideReqs);
       }
-    });
-    setPendingRideRequests(rideReqs);
+    } catch (err) {
+      console.warn('Error fetching ride join requests from Supabase:', err);
+    }
 
     // 2. Fetch Friend Requests from Supabase
     try {
@@ -350,42 +358,77 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
     }
   };
 
-  const handleAcceptRideRequest = (rideId, reqId, requesterName) => {
-    const savedRides = JSON.parse(localStorage.getItem('helpriders_social_rides') || '[]');
-    const updated = savedRides.map(r => {
-      if (r.id === rideId) {
-        const reqs = r.joinRequests.map(req => {
-          if (req.id === reqId) {
-            return { ...req, status: 'Accepted' };
-          }
-          return req;
-        });
-        return { ...r, joinedCount: r.joinedCount + 1, joinRequests: reqs };
-      }
-      return r;
-    });
-    localStorage.setItem('helpriders_social_rides', JSON.stringify(updated));
-    showToast(`✅ Accepted ${requesterName} into crew!`);
-    fetchAllNotifications();
+  const handleAcceptRideRequest = async (rideId, reqId, requesterName) => {
+    try {
+      const { data: ride, error: fetchErr } = await supabase
+        .from('rides')
+        .select('join_requests, joined_count')
+        .eq('id', rideId)
+        .maybeSingle();
+
+      if (fetchErr || !ride) throw new Error('Ride not found');
+
+      const requests = Array.isArray(ride.join_requests) ? ride.join_requests : JSON.parse(ride.join_requests || '[]');
+      const updatedRequests = requests.map(req => {
+        if (req.id === reqId) {
+          return { ...req, status: 'Accepted' };
+        }
+        return req;
+      });
+
+      const newJoinedCount = (ride.joined_count || 1) + 1;
+
+      const { error: updateErr } = await supabase
+        .from('rides')
+        .update({
+          join_requests: updatedRequests,
+          joined_count: newJoinedCount
+        })
+        .eq('id', rideId);
+
+      if (updateErr) throw updateErr;
+
+      showToast(`✅ Accepted ${requesterName} into crew!`);
+      fetchAllNotifications();
+    } catch (err) {
+      console.error(err);
+      showToast('❌ Failed to accept request.');
+    }
   };
 
-  const handleDeclineRideRequest = (rideId, reqId, requesterName) => {
-    const savedRides = JSON.parse(localStorage.getItem('helpriders_social_rides') || '[]');
-    const updated = savedRides.map(r => {
-      if (r.id === rideId) {
-        const reqs = r.joinRequests.map(req => {
-          if (req.id === reqId) {
-            return { ...req, status: 'Declined' };
-          }
-          return req;
-        });
-        return { ...r, joinRequests: reqs };
-      }
-      return r;
-    });
-    localStorage.setItem('helpriders_social_rides', JSON.stringify(updated));
-    showToast(`Declined request from ${requesterName}`);
-    fetchAllNotifications();
+  const handleDeclineRideRequest = async (rideId, reqId, requesterName) => {
+    try {
+      const { data: ride, error: fetchErr } = await supabase
+        .from('rides')
+        .select('join_requests')
+        .eq('id', rideId)
+        .maybeSingle();
+
+      if (fetchErr || !ride) throw new Error('Ride not found');
+
+      const requests = Array.isArray(ride.join_requests) ? ride.join_requests : JSON.parse(ride.join_requests || '[]');
+      const updatedRequests = requests.map(req => {
+        if (req.id === reqId) {
+          return { ...req, status: 'Declined' };
+        }
+        return req;
+      });
+
+      const { error: updateErr } = await supabase
+        .from('rides')
+        .update({
+          join_requests: updatedRequests
+        })
+        .eq('id', rideId);
+
+      if (updateErr) throw updateErr;
+
+      showToast(`Declined request from ${requesterName}`);
+      fetchAllNotifications();
+    } catch (err) {
+      console.error(err);
+      showToast('❌ Failed to decline request.');
+    }
   };
 
   useEffect(() => {

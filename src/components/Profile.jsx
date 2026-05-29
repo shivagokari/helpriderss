@@ -233,8 +233,11 @@ export default function Profile({ user, onLogout, rides }) {
   }, [fetchFriendsAndRequests]);
 
   const handleSearchRider = async () => {
-    const query = searchId.trim().toUpperCase();
+    let query = searchId.trim().toUpperCase();
     if (!query) return;
+    if (query === 'ADMIN') {
+      query = 'HR-ADMIN';
+    }
     if (query === uniqueId) { setSearchError("That's your own Rider ID!"); setSearchResult(null); return; }
     setSearchLoading(true); setSearchError(''); setSearchResult(null);
 
@@ -263,6 +266,23 @@ export default function Profile({ user, onLogout, rides }) {
           totalRides: 0,
           relationship: isFriend ? 'friend' : isBlocked ? 'blocked' : isPendingIn ? 'pending_in' : isPendingOut ? 'pending_out' : 'none'
         });
+      } else if (query === 'HR-ADMIN') {
+        const isBlocked = blocked.some(b => b.unique_id === 'HR-ADMIN');
+        const isFriend = friends.some(f => f.unique_id === 'HR-ADMIN');
+        const isPendingIn = pendingIn.some(p => p.unique_id === 'HR-ADMIN');
+        const isPendingOut = pendingOut.some(p => p.unique_id === 'HR-ADMIN');
+
+        setSearchResult({
+          uid: 'admin-uuid-fallback',
+          unique_id: 'HR-ADMIN',
+          displayName: 'Admin Moderator',
+          email: 'admin@helpriderss.com',
+          level: 'System Administrator',
+          bike: 'Cruiser',
+          totalRides: 0,
+          relationship: isFriend ? 'friend' : isBlocked ? 'blocked' : isPendingIn ? 'pending_in' : isPendingOut ? 'pending_out' : 'none',
+          isMock: true
+        });
       } else {
         setSearchError('No rider found with ID: ' + query);
       }
@@ -276,6 +296,11 @@ export default function Profile({ user, onLogout, rides }) {
   const sendFriendRequest = async (rider, noteVal = '') => {
     if (rider.relationship && rider.relationship !== 'none') {
       showToast('⚠️ Already connected, requested, or blocked.');
+      return;
+    }
+
+    if (rider.isMock) {
+      showToast('⚠️ Admin account is not yet initialized. Please ask the administrator to sign in first to initialize.');
       return;
     }
 
@@ -535,6 +560,7 @@ export default function Profile({ user, onLogout, rides }) {
   const [devName, setDevName] = useState('');
   const [devMobile, setDevMobile] = useState('');
   const [devSent, setDevSent] = useState(false);
+  const [showDevForm, setShowDevForm] = useState(false);
 
   // ── Referral ───────────────────────────────────────────────────────────────
   const referralLink = `https://helpriderss.vercel.app?ref=${uniqueId}`;
@@ -911,19 +937,29 @@ export default function Profile({ user, onLogout, rides }) {
 
       {/* Contact Developer */}
       <div className="glass-panel" style={{ padding: '16px', marginBottom: '16px', border: '1px solid rgba(255,170,0,0.15)' }}>
-        <h4 style={{ fontSize: '15px', color: 'white', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <h4 style={{ fontSize: '15px', color: 'white', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Headphones size={16} color="#ffaa00" /> Contact Developer
         </h4>
-        <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '14px', lineHeight: '1.5' }}>
-          Have a suggestion or issue? Drop your details and we'll reach out to you directly.
-        </p>
 
-        {devSent ? (
+        {/* Above that only mention that search Admin in req bar to add admin in you friend list */}
+        <div style={{ background: 'rgba(255, 170, 0, 0.08)', border: '1px solid rgba(255, 170, 0, 0.2)', padding: '10px 12px', borderRadius: '10px', fontSize: '11.5px', color: 'var(--secondary)', marginBottom: '14px', lineHeight: '1.4' }}>
+          💡 Search Admin in req bar to add admin in you friend list
+        </div>
+
+        {!showDevForm && !devSent ? (
+          <button 
+            onClick={() => setShowDevForm(true)}
+            className="btn-primary"
+            style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #ffaa00, #ff7700)', color: 'white', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+          >
+            <Headphones size={14} /> Contact Developer
+          </button>
+        ) : devSent ? (
           <div style={{ textAlign: 'center', padding: '16px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '12px' }}>
             <div style={{ fontSize: '28px', marginBottom: '6px' }}>✅</div>
             <strong style={{ color: '#22c55e', fontSize: '13px', display: 'block' }}>Message Sent!</strong>
             <p style={{ color: 'var(--text-muted)', fontSize: '11px', margin: '4px 0 0' }}>Our team will contact you soon.</p>
-            <button onClick={() => { setDevSent(false); setDevName(''); setDevMobile(''); }} style={{ marginTop: '10px', fontSize: '11px', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
+            <button onClick={() => { setDevSent(false); setDevName(''); setDevMobile(''); setShowDevForm(false); }} style={{ marginTop: '10px', fontSize: '11px', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
               Send another message
             </button>
           </div>
@@ -946,12 +982,18 @@ export default function Profile({ user, onLogout, rides }) {
               } catch { showToast('⚠️ Network error. Please try again.'); }
             }}
             style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
+            className="animate-zoom-in"
           >
             <input type="text" placeholder="Your Full Name" value={devName} onChange={e => setDevName(e.target.value)} required style={inputStyle} />
             <input type="tel" placeholder="Working Mobile Number (10 digits)" value={devMobile} onChange={e => setDevMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} required style={inputStyle} />
-            <button type="submit" style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #ffaa00, #ff7700)', color: 'white', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              <Send size={14} /> Send to Developer
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button type="button" onClick={() => setShowDevForm(false)} className="btn-secondary" style={{ flex: 1, padding: '10px', fontSize: '12px' }}>
+                Cancel
+              </button>
+              <button type="submit" style={{ flex: 2, padding: '10px', background: 'linear-gradient(135deg, #ffaa00, #ff7700)', color: 'white', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <Send size={14} /> Send to Developer
+              </button>
+            </div>
           </form>
         )}
       </div>

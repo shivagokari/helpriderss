@@ -87,21 +87,43 @@ export default function LetsRide({ user }) {
     return `${hours.toString().padStart(2, '0')}:${minutes}`;
   };
 
-  // Load rides & notifications from localStorage or seed defaults
-  useEffect(() => {
-    const savedRides = localStorage.getItem('helpriders_social_rides');
-    if (savedRides) {
-      setRides(JSON.parse(savedRides));
-    } else {
-      setRides([]);
-      localStorage.setItem('helpriders_social_rides', JSON.stringify([]));
-    }
-  }, []);
+  // Load rides & notifications from Supabase
+  const fetchCommunityRides = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('rides')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-  const saveRidesToStorage = (updatedRides) => {
-    setRides(updatedRides);
-    localStorage.setItem('helpriders_social_rides', JSON.stringify(updatedRides));
+      if (error) throw error;
+      if (data) {
+        const mapped = data.map(r => ({
+          id: r.id,
+          user_id: r.user_id,
+          creator: r.creator,
+          creatorPhone: r.creator_phone,
+          creatorEmail: r.creator_email || '',
+          title: r.title,
+          route: r.route,
+          date: r.date,
+          time: r.time,
+          distance: r.distance,
+          bikeType: r.bike_type,
+          description: r.description,
+          maxSlots: r.max_slots,
+          joinedCount: r.joined_count,
+          joinRequests: Array.isArray(r.join_requests) ? r.join_requests : JSON.parse(r.join_requests || '[]')
+        }));
+        setRides(mapped);
+      }
+    } catch (err) {
+      console.error('Error fetching social rides:', err.message);
+    }
   };
+
+  useEffect(() => {
+    fetchCommunityRides();
+  }, []);
 
   const handlePostInputChange = (field, val) => {
     setNewRide(prev => ({ ...prev, [field]: val }));
@@ -112,7 +134,7 @@ export default function LetsRide({ user }) {
   };
 
   // Submit Post a Ride
-  const handlePostSubmit = (e) => {
+  const handlePostSubmit = async (e) => {
     e.preventDefault();
     if (!newRide.title || !newRide.startPoint || !newRide.destination || !newRide.date || !newRide.time) {
       showToast('⚠️ Please fill out all required details.');
@@ -172,48 +194,58 @@ export default function LetsRide({ user }) {
       return;
     }
 
-    if (editingSocialRide) {
-      // Edit Mode
-      const updated = rides.map(r => {
-        if (r.id === editingSocialRide.id) {
-          return {
-            ...r,
+    try {
+      if (editingSocialRide) {
+        // Edit Mode
+        const { error } = await supabase
+          .from('rides')
+          .update({
             title: newRide.title,
             route: routeStr,
             date: newRide.date,
             time: formattedTime,
             distance: newRide.distance,
-            bikeType: newRide.bikeType,
+            bike_type: newRide.bikeType,
             description: newRide.description,
-            maxSlots: newRide.maxSlots ? parseInt(newRide.maxSlots, 10) : 120
-          };
-        }
-        return r;
-      });
-      saveRidesToStorage(updated);
-      setEditingSocialRide(null);
-      showToast('✏️ Ride post updated successfully!');
-    } else {
-      // Create Mode
-      const createdRide = {
-        id: 'social-' + Date.now(),
-        creator: user ? (user.displayName || user.email.split('@')[0]) : 'You (Host)',
-        creatorPhone: user ? (user.phone || '+91 99009 90099') : '+91 99009 90099',
-        creatorEmail: user ? user.email : '',
-        title: newRide.title,
-        route: routeStr,
-        date: newRide.date,
-        time: formattedTime,
-        distance: newRide.distance,
-        bikeType: newRide.bikeType,
-        description: newRide.description,
-        maxSlots: newRide.maxSlots ? parseInt(newRide.maxSlots, 10) : 120,
-        joinedCount: 1,
-        joinRequests: []
-      };
-      const updated = [createdRide, ...rides];
-      saveRidesToStorage(updated);
-      showToast('🏍️ Ride posted successfully to community feed!');
+            max_slots: newRide.maxSlots ? parseInt(newRide.maxSlots, 10) : 120
+          })
+          .eq('id', editingSocialRide.id);
+
+        if (error) throw error;
+
+        setEditingSocialRide(null);
+        showToast('✏️ Ride post updated successfully!');
+      } else {
+        // Create Mode
+        const createdRide = {
+          id: 'social-' + Date.now(),
+          user_id: user ? user.uid : null,
+          creator: user ? (user.displayName || user.email.split('@')[0]) : 'You (Host)',
+          creator_phone: user ? (user.phone || '+91 99009 90099') : '+91 99009 90099',
+          creator_email: user ? user.email : '',
+          title: newRide.title,
+          route: routeStr,
+          date: newRide.date,
+          time: formattedTime,
+          distance: newRide.distance,
+          bike_type: newRide.bikeType,
+          description: newRide.description,
+          max_slots: newRide.maxSlots ? parseInt(newRide.maxSlots, 10) : 120,
+          joined_count: 1,
+          join_requests: []
+        };
+
+        const { error } = await supabase
+          .from('rides')
+          .insert(createdRide);
+
+        if (error) throw error;
+        showToast('🏍️ Ride posted successfully to community feed!');
+      }
+
+      fetchCommunityRides();
+    } catch (err) {
+      showToast('❌ Failed to save ride: ' + err.message);
     }
 
     setShowPostModal(false);
@@ -287,48 +319,55 @@ export default function LetsRide({ user }) {
   };
 
   // Confirm Join and submit
-  const handleConfirmSafetyAndJoin = () => {
+  const handleConfirmSafetyAndJoin = async () => {
     setShowSafetyModal(false);
     setShowJoinModal(false);
 
-    const updated = rides.map(r => {
-      if (r.id === selectedRide.id) {
-        const requests = r.joinRequests ? [...r.joinRequests] : [];
-        requests.push({ 
-          id: 'req-' + Date.now(),
-          name: joinForm.name,
-          bikeModel: joinForm.bikeModel,
-          phone: joinForm.phone,
-          age: joinForm.age,
-          crewType: joinForm.crewType,
-          status: 'Pending',
-          isMe: true
-        });
-        return {
-          ...r,
-          joinedCount: r.joinedCount + 1,
-          joinRequests: requests
-        };
-      }
-      return r;
-    });
+    try {
+      const newRequest = { 
+        id: 'req-' + Date.now(),
+        name: joinForm.name,
+        bikeModel: joinForm.bikeModel,
+        phone: joinForm.phone,
+        age: joinForm.age,
+        crewType: joinForm.crewType,
+        status: 'Pending',
+        isMe: true
+      };
 
-    saveRidesToStorage(updated);
+      const updatedJoinRequests = selectedRide.joinRequests ? [...selectedRide.joinRequests, newRequest] : [newRequest];
+      const newJoinedCount = (selectedRide.joinedCount || 1) + 1;
 
-    // Create a notification for the ride plan creator showing all the details
-    const newNotification = {
-      id: 'notif-' + Date.now(),
-      rideTitle: selectedRide.title,
-      creatorName: selectedRide.creator,
-      joinerName: joinForm.name,
-      joinerPhone: joinForm.phone,
-      joinerBike: joinForm.bikeModel,
-      joinerAge: joinForm.age,
-      joinerCrew: joinForm.crewType
-    };
+      const { error } = await supabase
+        .from('rides')
+        .update({
+          join_requests: updatedJoinRequests,
+          joined_count: newJoinedCount
+        })
+        .eq('id', selectedRide.id);
 
-    setNotifications(prev => [newNotification, ...prev]);
-    setActiveNotification(newNotification);
+      if (error) throw error;
+
+      // Create a notification for the ride plan creator showing all the details
+      const newNotification = {
+        id: 'notif-' + Date.now(),
+        rideTitle: selectedRide.title,
+        creatorName: selectedRide.creator,
+        joinerName: joinForm.name,
+        joinerPhone: joinForm.phone,
+        joinerBike: joinForm.bikeModel,
+        joinerAge: joinForm.age,
+        joinerCrew: joinForm.crewType
+      };
+
+      setNotifications(prev => [newNotification, ...prev]);
+      setActiveNotification(newNotification);
+
+      showToast('✅ Request to join crew submitted!');
+      fetchCommunityRides();
+    } catch (err) {
+      showToast('❌ Failed to submit join request: ' + err.message);
+    }
 
     // Reset join form
     setJoinForm({
@@ -338,25 +377,34 @@ export default function LetsRide({ user }) {
       age: '',
       crewType: 'Solo'
     });
-
-    showToast('✅ Request to join crew submitted!');
   };
 
-  const handleRequestAction = (rideId, requestId, action) => {
-    const updated = rides.map(r => {
-      if (r.id === rideId) {
-        const reqs = r.joinRequests.map(req => {
-          if (req.id === requestId) {
-            return { ...req, status: action === 'accept' ? 'Accepted' : 'Declined' };
-          }
-          return req;
-        });
-        return { ...r, joinRequests: reqs };
-      }
-      return r;
-    });
-    saveRidesToStorage(updated);
-    showToast(`Request ${action === 'accept' ? 'accepted' : 'declined'} successfully!`);
+  const handleRequestAction = async (rideId, requestId, action) => {
+    const ride = rides.find(r => r.id === rideId);
+    if (!ride) return;
+
+    try {
+      const updatedRequests = ride.joinRequests.map(req => {
+        if (req.id === requestId) {
+          return { ...req, status: action === 'accept' ? 'Accepted' : 'Declined' };
+        }
+        return req;
+      });
+
+      const { error } = await supabase
+        .from('rides')
+        .update({
+          join_requests: updatedRequests
+        })
+        .eq('id', rideId);
+
+      if (error) throw error;
+
+      showToast(`Request ${action === 'accept' ? 'accepted' : 'declined'} successfully!`);
+      fetchCommunityRides();
+    } catch (err) {
+      showToast('❌ Failed to update request: ' + err.message);
+    }
   };
 
   return (
