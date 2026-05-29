@@ -13,7 +13,7 @@ const smallInputStyle = { flex: 1, padding: '8px 10px', fontSize: '11px', backgr
 
 export default function Profile({ user, onLogout, rides }) {
   // ── Avatar ────────────────────────────────────────────────────────────────
-  const [avatar, setAvatar] = useState(() => localStorage.getItem('helpriders_avatar') || null);
+  const [avatar, setAvatar] = useState(null);
   const fileInputRef = useRef(null);
   const [localToast, setLocalToast] = useState('');
 
@@ -27,18 +27,19 @@ export default function Profile({ user, onLogout, rides }) {
     if (!file) return;
     if (file.size > 1.5 * 1024 * 1024) { showToast('⚠️ Please upload an image smaller than 1.5MB.'); return; }
     const reader = new FileReader();
-    reader.onloadend = () => { setAvatar(reader.result); localStorage.setItem('helpriders_avatar', reader.result); showToast('✅ Profile picture updated!'); };
+    reader.onloadend = async () => {
+      const base64 = reader.result;
+      setAvatar(base64);
+      showToast('✅ Profile picture updated!');
+      if (user?.uid) {
+        await supabase.from('profiles').update({ avatar_url: base64 }).eq('id', user.uid);
+      }
+    };
     reader.readAsDataURL(file);
   };
 
   // ── Unique Rider ID ───────────────────────────────────────────────────────
-  const [uniqueId, setUniqueId] = useState(() => {
-    const saved = localStorage.getItem('helpriders_unique_id');
-    if (saved) return saved;
-    const generated = 'HR-' + Math.floor(10000 + Math.random() * 90000);
-    localStorage.setItem('helpriders_unique_id', generated);
-    return generated;
-  });
+  const [uniqueId, setUniqueId] = useState(user?.uniqueId || '');
 
   const copyUniqueId = () => {
     navigator.clipboard.writeText(uniqueId).then(() => showToast('✅ Your Rider ID copied to clipboard!'));
@@ -56,48 +57,89 @@ export default function Profile({ user, onLogout, rides }) {
   const progressPercent = Math.min(100, Math.max(0, ((totalKMs - prevLevelKM) / (nextLevelKM - prevLevelKM)) * 100));
 
   // ── Garage (real data only) ───────────────────────────────────────────────
-  const [garage, setGarage] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('helpriders_garage_v2') || '[]'); } catch { return []; }
-  });
-  const [activeBike, setActiveBike] = useState(() => {
-    const g = JSON.parse(localStorage.getItem('helpriders_garage_v2') || '[]');
-    return g.length > 0 ? g[0].name : '';
-  });
+  const [garage, setGarage] = useState([]);
+  const [activeBike, setActiveBike] = useState('');
   const [newBikeName, setNewBikeName] = useState('');
   const [newBikeNumber, setNewBikeNumber] = useState('');
   const [newBikeType, setNewBikeType] = useState('Cruiser');
 
-  useEffect(() => { localStorage.setItem('helpriders_garage_v2', JSON.stringify(garage)); }, [garage]);
-
-  const handleAddBike = (e) => {
-    e.preventDefault();
-    if (!newBikeName.trim()) return;
-    const b = { name: newBikeName.trim(), number: newBikeNumber.trim() || '—', type: newBikeType };
-    setGarage(prev => [...prev, b]);
-    if (!activeBike) setActiveBike(b.name);
-    setNewBikeName(''); setNewBikeNumber(''); setNewBikeType('Cruiser');
-    showToast('🏍️ Bike added to your garage!');
-  };
-
-  const handleRemoveBike = (name) => {
-    setGarage(prev => { const next = prev.filter(b => b.name !== name); if (activeBike === name && next.length > 0) setActiveBike(next[0].name); else if (next.length === 0) setActiveBike(''); return next; });
-  };
-
   // ── Emergency Contacts (real data only) ──────────────────────────────────
-  const [emergencyContacts, setEmergencyContacts] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('helpriders_contacts_v2') || '[]'); } catch { return []; }
-  });
+  const [emergencyContacts, setEmergencyContacts] = useState([]);
   const [newContactName, setNewContactName] = useState('');
   const [newContactPhone, setNewContactPhone] = useState('');
 
-  useEffect(() => { localStorage.setItem('helpriders_contacts_v2', JSON.stringify(emergencyContacts)); }, [emergencyContacts]);
+  // Fetch all profile details from Supabase on mount
+  useEffect(() => {
+    if (!user || !user.uid) return;
+    const fetchProfileData = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('garage, emergency_contacts, avatar_url, unique_id')
+          .eq('id', user.uid)
+          .maybeSingle();
 
-  const handleAddContact = (e) => {
+        if (error) throw error;
+        if (data) {
+          setGarage(data.garage || []);
+          setEmergencyContacts(data.emergency_contacts || []);
+          setAvatar(data.avatar_url || null);
+          if (data.unique_id) setUniqueId(data.unique_id);
+          if (data.garage && data.garage.length > 0) {
+            setActiveBike(data.garage[0].name);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load Supabase profile details:', err.message);
+      }
+    };
+    fetchProfileData();
+  }, [user]);
+
+  const handleAddBike = async (e) => {
+    e.preventDefault();
+    if (!newBikeName.trim()) return;
+    const b = { name: newBikeName.trim(), number: newBikeNumber.trim() || '—', type: newBikeType };
+    const updatedGarage = [...garage, b];
+    setGarage(updatedGarage);
+    if (!activeBike) setActiveBike(b.name);
+    setNewBikeName(''); setNewBikeNumber(''); setNewBikeType('Cruiser');
+    showToast('🏍️ Bike added to your garage!');
+    if (user?.uid) {
+      await supabase.from('profiles').update({ garage: updatedGarage }).eq('id', user.uid);
+    }
+  };
+
+  const handleRemoveBike = async (name) => {
+    const updatedGarage = garage.filter(b => b.name !== name);
+    setGarage(updatedGarage);
+    if (activeBike === name && updatedGarage.length > 0) setActiveBike(updatedGarage[0].name);
+    else if (updatedGarage.length === 0) setActiveBike('');
+    showToast('❌ Bike removed.');
+    if (user?.uid) {
+      await supabase.from('profiles').update({ garage: updatedGarage }).eq('id', user.uid);
+    }
+  };
+
+  const handleAddContact = async (e) => {
     e.preventDefault();
     if (!newContactName.trim() || !newContactPhone.trim()) return;
-    setEmergencyContacts(prev => [...prev, { name: newContactName.trim(), phone: newContactPhone.trim() }]);
+    const updatedContacts = [...emergencyContacts, { name: newContactName.trim(), phone: newContactPhone.trim() }];
+    setEmergencyContacts(updatedContacts);
     setNewContactName(''); setNewContactPhone('');
     showToast('✅ Emergency contact saved.');
+    if (user?.uid) {
+      await supabase.from('profiles').update({ emergency_contacts: updatedContacts }).eq('id', user.uid);
+    }
+  };
+
+  const handleRemoveContact = async (phone) => {
+    const updatedContacts = emergencyContacts.filter(c => c.phone !== phone);
+    setEmergencyContacts(updatedContacts);
+    showToast('❌ Contact removed.');
+    if (user?.uid) {
+      await supabase.from('profiles').update({ emergency_contacts: updatedContacts }).eq('id', user.uid);
+    }
   };
 
   // ── Friend System ─────────────────────────────────────────────────────────
@@ -106,93 +148,378 @@ export default function Profile({ user, onLogout, rides }) {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
 
-  // Friends list stored in localStorage (keyed by uniqueId)
-  const [friends, setFriends] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('helpriders_friends_v2') || '[]'); } catch { return []; }
-  });
-  const [pendingIn, setPendingIn] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('helpriders_pending_in') || '[]'); } catch { return []; }
-  });
-  const [pendingOut, setPendingOut] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('helpriders_pending_out') || '[]'); } catch { return []; }
-  });
-  const [blocked, setBlocked] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('helpriders_blocked') || '[]'); } catch { return []; }
-  });
+  const [friends, setFriends] = useState([]);
+  const [pendingIn, setPendingIn] = useState([]);
+  const [pendingOut, setPendingOut] = useState([]);
+  const [blocked, setBlocked] = useState([]);
 
-  useEffect(() => { localStorage.setItem('helpriders_friends_v2', JSON.stringify(friends)); }, [friends]);
-  useEffect(() => { localStorage.setItem('helpriders_pending_in', JSON.stringify(pendingIn)); }, [pendingIn]);
-  useEffect(() => { localStorage.setItem('helpriders_pending_out', JSON.stringify(pendingOut)); }, [pendingOut]);
-  useEffect(() => { localStorage.setItem('helpriders_blocked', JSON.stringify(blocked)); }, [blocked]);
+  const fetchFriendsAndRequests = useCallback(async () => {
+    if (!user || !user.uid) return;
+    try {
+      const { data: records, error } = await supabase
+        .from('friend_requests')
+        .select('*')
+        .or(`from_id.eq.${user.uid},to_id.eq.${user.uid}`);
+
+      if (error) throw error;
+
+      const userIds = [...new Set(records.flatMap(r => [r.from_id, r.to_id]))].filter(id => id !== user.uid);
+      let profileMap = {};
+      if (userIds.length > 0) {
+        const { data: profs, error: profsErr } = await supabase
+          .from('profiles')
+          .select('id, name, email, unique_id, level, garage')
+          .in('id', userIds);
+        
+        if (!profsErr && profs) {
+          profs.forEach(p => {
+            profileMap[p.id] = p;
+          });
+        }
+      }
+
+      const activeFriends = [];
+      const incoming = [];
+      const outgoing = [];
+      const blockedList = [];
+
+      records.forEach(r => {
+        const otherId = r.from_id === user.uid ? r.to_id : r.from_id;
+        const otherProfile = profileMap[otherId];
+        if (!otherProfile) return;
+
+        const mappedRider = {
+          id: r.id,
+          uid: otherProfile.id,
+          unique_id: otherProfile.unique_id,
+          displayName: otherProfile.name || otherProfile.email.split('@')[0],
+          email: otherProfile.email,
+          level: otherProfile.level || 'Rookie Rider',
+          bike: otherProfile.garage && otherProfile.garage.length > 0 ? otherProfile.garage[0].name : 'Unknown Bike',
+          totalRides: 0
+        };
+
+        if (r.status === 'accepted') {
+          activeFriends.push(mappedRider);
+        } else if (r.status === 'pending') {
+          if (r.to_id === user.uid) {
+            incoming.push(mappedRider);
+          } else {
+            outgoing.push(mappedRider);
+          }
+        } else if (r.status === 'blocked') {
+          if (r.from_id === user.uid) {
+            blockedList.push(mappedRider);
+          }
+        }
+      });
+
+      setFriends(activeFriends);
+      setPendingIn(incoming);
+      setPendingOut(outgoing);
+      setBlocked(blockedList);
+    } catch (err) {
+      console.error('Error fetching friends:', err.message);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchFriendsAndRequests();
+  }, [fetchFriendsAndRequests]);
 
   const handleSearchRider = async () => {
     const query = searchId.trim().toUpperCase();
     if (!query) return;
     if (query === uniqueId) { setSearchError("That's your own Rider ID!"); setSearchResult(null); return; }
     setSearchLoading(true); setSearchError(''); setSearchResult(null);
-    // Simulate finding a rider (in production, query Supabase profiles table)
-    setTimeout(() => {
-      // Mock result — in real app: supabase.from('profiles').select().eq('unique_id', query)
-      if (query.startsWith('HR-') && query.length === 8) {
-        setSearchResult({ unique_id: query, displayName: 'Rider ' + query.split('-')[1], bike: 'Unknown Bike', totalRides: 0, level: 'Rookie Rider' });
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, name, email, unique_id, level, garage')
+        .eq('unique_id', query)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data) {
+        const isBlocked = blocked.some(b => b.unique_id === data.unique_id);
+        const isFriend = friends.some(f => f.unique_id === data.unique_id);
+        const isPendingIn = pendingIn.some(p => p.unique_id === data.unique_id);
+        const isPendingOut = pendingOut.some(p => p.unique_id === data.unique_id);
+
+        setSearchResult({
+          uid: data.id,
+          unique_id: data.unique_id,
+          displayName: data.name || data.email.split('@')[0],
+          email: data.email,
+          level: data.level || 'Rookie Rider',
+          bike: data.garage && data.garage.length > 0 ? data.garage[0].name : 'Unknown Bike',
+          totalRides: 0,
+          relationship: isFriend ? 'friend' : isBlocked ? 'blocked' : isPendingIn ? 'pending_in' : isPendingOut ? 'pending_out' : 'none'
+        });
       } else {
         setSearchError('No rider found with ID: ' + query);
       }
+    } catch (err) {
+      setSearchError('Failed to search: ' + err.message);
+    } finally {
       setSearchLoading(false);
-    }, 800);
+    }
   };
 
-  const sendFriendRequest = (rider) => {
-    if (pendingOut.find(p => p.unique_id === rider.unique_id) || friends.find(f => f.unique_id === rider.unique_id)) {
-      showToast('⚠️ Request already sent or already friends.');
+  const sendFriendRequest = async (rider) => {
+    if (rider.relationship && rider.relationship !== 'none') {
+      showToast('⚠️ Already connected, requested, or blocked.');
       return;
     }
-    setPendingOut(prev => [...prev, { ...rider, sentAt: new Date().toISOString() }]);
-    setSearchResult(null); setSearchId('');
-    showToast(`📨 Friend request sent to ${rider.displayName}!`);
+
+    try {
+      const { error } = await supabase
+        .from('friend_requests')
+        .insert({
+          from_id: user.uid,
+          to_id: rider.uid,
+          status: 'pending'
+        });
+
+      if (error) throw error;
+
+      showToast(`📨 Friend request sent to ${rider.displayName}!`);
+      fetchFriendsAndRequests();
+      setSearchResult(null); setSearchId('');
+    } catch (err) {
+      showToast('❌ Failed to send request: ' + err.message);
+    }
   };
 
-  const acceptRequest = (req) => {
-    setFriends(prev => [...prev, { ...req, addedAt: new Date().toISOString() }]);
-    setPendingIn(prev => prev.filter(p => p.unique_id !== req.unique_id));
-    showToast(`✅ You and ${req.displayName} are now connected!`);
+  const acceptRequest = async (req) => {
+    try {
+      const { error } = await supabase
+        .from('friend_requests')
+        .update({ status: 'accepted' })
+        .eq('from_id', req.uid)
+        .eq('to_id', user.uid);
+
+      if (error) throw error;
+
+      showToast(`✅ You and ${req.displayName} are now connected!`);
+      fetchFriendsAndRequests();
+    } catch (err) {
+      showToast('❌ Failed to accept request: ' + err.message);
+    }
   };
 
-  const rejectRequest = (req) => {
-    setPendingIn(prev => prev.filter(p => p.unique_id !== req.unique_id));
-    showToast('❌ Request rejected.');
+  const rejectRequest = async (req) => {
+    try {
+      const { error } = await supabase
+        .from('friend_requests')
+        .delete()
+        .eq('from_id', req.uid)
+        .eq('to_id', user.uid);
+
+      if (error) throw error;
+
+      showToast('❌ Request rejected.');
+      fetchFriendsAndRequests();
+    } catch (err) {
+      showToast('❌ Failed to reject: ' + err.message);
+    }
   };
 
-  const blockRider = (rider) => {
-    setBlocked(prev => [...prev, rider]);
-    setFriends(prev => prev.filter(f => f.unique_id !== rider.unique_id));
-    setPendingIn(prev => prev.filter(p => p.unique_id !== rider.unique_id));
-    showToast(`🚫 ${rider.displayName} has been blocked.`);
+  const blockRider = async (rider) => {
+    try {
+      await supabase
+        .from('friend_requests')
+        .delete()
+        .or(`and(from_id.eq.${user.uid},to_id.eq.${rider.uid}),and(from_id.eq.${rider.uid},to_id.eq.${user.uid})`);
+
+      const { error } = await supabase
+        .from('friend_requests')
+        .insert({
+          from_id: user.uid,
+          to_id: rider.uid,
+          status: 'blocked'
+        });
+
+      if (error) throw error;
+
+      showToast(`🚫 ${rider.displayName} has been blocked.`);
+      fetchFriendsAndRequests();
+    } catch (err) {
+      showToast('❌ Failed to block: ' + err.message);
+    }
   };
 
-  const unblockRider = (rider) => {
-    setBlocked(prev => prev.filter(b => b.unique_id !== rider.unique_id));
-    showToast(`✅ ${rider.displayName} has been unblocked.`);
+  const unblockRider = async (rider) => {
+    try {
+      const { error } = await supabase
+        .from('friend_requests')
+        .delete()
+        .eq('from_id', user.uid)
+        .eq('to_id', rider.uid)
+        .eq('status', 'blocked');
+
+      if (error) throw error;
+
+      showToast(`✅ ${rider.displayName} has been unblocked.`);
+      fetchFriendsAndRequests();
+    } catch (err) {
+      showToast('❌ Failed to unblock: ' + err.message);
+    }
   };
 
   // ── Chat ──────────────────────────────────────────────────────────────────
   const [activeChatFriend, setActiveChatFriend] = useState(null);
   const [chatMessage, setChatMessage] = useState('');
-  const [chats, setChats] = useState(() => { try { return JSON.parse(localStorage.getItem('helpriders_chats_v2') || '{}'); } catch { return {}; } });
+  const [messagesList, setMessagesList] = useState([]);
   const chatBottomRef = useRef(null);
 
-  useEffect(() => { localStorage.setItem('helpriders_chats_v2', JSON.stringify(chats)); }, [chats]);
-  useEffect(() => { if (chatBottomRef.current) chatBottomRef.current.scrollIntoView({ behavior: 'smooth' }); }, [activeChatFriend, chats]);
+  useEffect(() => {
+    if (!user || !user.uid || !activeChatFriend) {
+      setMessagesList([]);
+      return;
+    }
 
-  const handleSendMessage = (e) => {
+    const fetchMessages = async () => {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .or(`and(sender_id.eq.${user.uid},receiver_id.eq.${activeChatFriend.uid}),and(sender_id.eq.${activeChatFriend.uid},receiver_id.eq.${user.uid})`)
+        .order('created_at', { ascending: true });
+
+      if (!error && data) {
+        setMessagesList(data);
+      }
+    };
+
+    fetchMessages();
+
+    // Subscribe to new messages in real-time
+    const subscription = supabase
+      .channel(`chat_${user.uid}_${activeChatFriend.uid}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages'
+      }, (payload) => {
+        const msg = payload.new;
+        if (
+          (msg.sender_id === user.uid && msg.receiver_id === activeChatFriend.uid) ||
+          (msg.sender_id === activeChatFriend.uid && msg.receiver_id === user.uid)
+        ) {
+          setMessagesList(prev => {
+            if (prev.some(m => m.id === msg.id)) return prev;
+            return [...prev, msg];
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [user, activeChatFriend]);
+
+  useEffect(() => { 
+    if (chatBottomRef.current) chatBottomRef.current.scrollIntoView({ behavior: 'smooth' }); 
+  }, [activeChatFriend, messagesList]);
+
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!chatMessage.trim() || !activeChatFriend) return;
     const text = chatMessage.trim();
     const phonePattern = /(?:(?:\+|0{0,2})91[- ]?)?[6-9]\d{9}|\b\d{10}\b/g;
     if (phonePattern.test(text)) { showToast('⚠️ Sharing phone numbers in chat is restricted.'); return; }
-    const newMsg = { id: Date.now(), sender: 'you', text };
-    setChats(prev => ({ ...prev, [activeChatFriend.unique_id]: [...(prev[activeChatFriend.unique_id] || []), newMsg] }));
-    setChatMessage('');
+
+    const toxicKeywords = ['drugs', 'weapons', 'scam'];
+    if (toxicKeywords.some(kw => text.toLowerCase().includes(kw))) {
+      showToast('⚠️ Toxic content detected. Message blocked.');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .insert({
+          sender_id: user.uid,
+          receiver_id: activeChatFriend.uid,
+          content: text
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setMessagesList(prev => [...prev, data]);
+      setChatMessage('');
+    } catch (err) {
+      showToast('❌ Failed to send message: ' + err.message);
+    }
+  };
+
+  const parseMessageContent = (text) => {
+    if (!text) return '';
+
+    const imgRegex = /^(https?:\/\/\S+\.(?:png|jpg|jpeg|gif))$/i;
+    if (imgRegex.test(text.trim())) {
+      return (
+        <img 
+          src={text.trim()} 
+          alt="Shared" 
+          style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '12px', marginTop: '4px', display: 'block' }} 
+        />
+      );
+    }
+
+    const coordsRegex = /lat:\s*([+-]?\d+(?:\.\d+)?)\s*,?\s*lon:\s*([+-]?\d+(?:\.\d+)?)/i;
+    const coordsMatch = text.match(coordsRegex);
+    if (coordsMatch) {
+      const lat = coordsMatch[1];
+      const lon = coordsMatch[2];
+      const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+      return (
+        <span>
+          {text.substring(0, coordsMatch.index)}
+          <a 
+            href={mapsUrl} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            style={{ color: '#ffaa00', textDecoration: 'underline', fontWeight: 'bold' }}
+          >
+            📍 Location (Google Maps)
+          </a>
+          {text.substring(coordsMatch.index + coordsMatch[0].length)}
+        </span>
+      );
+    }
+
+    const urlRegex = /(https?:\/\/\S+)/gi;
+    const parts = text.split(urlRegex);
+    if (parts.length > 1) {
+      return (
+        <span>
+          {parts.map((part, i) => {
+            if (urlRegex.test(part)) {
+              return (
+                <a 
+                  key={i} 
+                  href={part} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  style={{ color: '#ffaa00', textDecoration: 'underline' }}
+                >
+                  {part}
+                </a>
+              );
+            }
+            return part;
+          })}
+        </span>
+      );
+    }
+
+    return text;
   };
 
   // ── Contact Developer ─────────────────────────────────────────────────────
@@ -505,7 +832,7 @@ export default function Profile({ user, onLogout, rides }) {
                 <a href={`tel:${c.phone}`} style={{ color: 'var(--success)', display: 'flex', alignItems: 'center' }}>
                   <PhoneCall size={14} />
                 </a>
-                <button onClick={() => setEmergencyContacts(prev => prev.filter(x => x.phone !== c.phone))} style={{ color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                <button onClick={() => handleRemoveContact(c.phone)} style={{ color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                   <Trash2 size={13} />
                 </button>
               </div>
@@ -612,17 +939,17 @@ export default function Profile({ user, onLogout, rides }) {
               </button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {(chats[activeChatFriend.unique_id] || []).length === 0 ? (
+              {messagesList.length === 0 ? (
                 <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px' }}>
                   <MessageSquare size={24} style={{ margin: '0 auto 8px', opacity: 0.4 }} />
                   <span>No messages yet. Say hello!</span>
                 </div>
               ) : (
-                (chats[activeChatFriend.unique_id] || []).map(msg => {
-                  const isYou = msg.sender === 'you';
+                messagesList.map(msg => {
+                  const isYou = msg.sender_id === user.uid;
                   return (
                     <div key={msg.id} style={{ alignSelf: isYou ? 'flex-end' : 'flex-start', maxWidth: '80%', padding: '10px 12px', background: isYou ? 'linear-gradient(135deg, var(--primary) 0%, #cc4400 100%)' : 'rgba(255,255,255,0.04)', border: isYou ? 'none' : '1px solid rgba(255,255,255,0.05)', borderRadius: isYou ? '16px 16px 2px 16px' : '16px 16px 16px 2px', color: 'white', fontSize: '12px', lineHeight: '1.4' }}>
-                      {msg.text}
+                      {parseMessageContent(msg.content)}
                     </div>
                   );
                 })

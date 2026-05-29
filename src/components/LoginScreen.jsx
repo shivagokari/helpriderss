@@ -85,18 +85,39 @@ export default function LoginScreen({ onLoginSuccess }) {
           // Valid Supabase session — fetch profile and auto-login
           const { data: profile } = await supabase
             .from('profiles')
-            .select('mobile, name, level')
+            .select('mobile, name, level, unique_id')
             .eq('id', session.user.id)
             .maybeSingle();
 
+          let uniqueId = profile?.unique_id;
+          let mobile = profile?.mobile || session.user.user_metadata?.mobile || '';
+          let name = profile?.name || session.user.user_metadata?.full_name || session.user.email.split('@')[0];
+          let level = profile?.level || 'Rookie Rider';
+
+          if (!profile) {
+            uniqueId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+            await supabase.from('profiles').insert({
+              id: session.user.id,
+              email: session.user.email,
+              mobile: mobile,
+              name: name,
+              level: level,
+              unique_id: uniqueId
+            });
+          } else if (!uniqueId) {
+            uniqueId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+            await supabase.from('profiles').update({ unique_id: uniqueId }).eq('id', session.user.id);
+          }
+
           const userData = {
             uid: session.user.id,
-            phone: profile?.mobile || '',
+            phone: mobile,
             email: session.user.email,
             authenticated: true,
-            level: profile?.level || 'Rookie Rider',
+            level: level,
             joined: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-            displayName: profile?.name || session.user.user_metadata?.full_name || session.user.email.split('@')[0],
+            displayName: name,
+            uniqueId: uniqueId
           };
           localStorage.setItem('helpriders_session', JSON.stringify(userData));
           onLoginSuccess(userData);
@@ -173,16 +194,18 @@ export default function LoginScreen({ onLoginSuccess }) {
 
           if (!signUpError && signUpData.user) {
             const user = signUpData.user;
+            const generatedId = 'HR-ADMIN';
             await supabase.from('profiles').insert({
               id: user.id,
               email: cleanEmail,
               mobile: '+91 99999 88888',
               name: 'Admin Moderator',
-              level: 'System Administrator'
+              level: 'System Administrator',
+              unique_id: generatedId
             });
 
             if (signUpData.session) {
-              completeLoginFlow(user, '+91 99999 88888', 'Admin Moderator', 'System Administrator');
+              completeLoginFlow(user, '+91 99999 88888', 'Admin Moderator', 'System Administrator', generatedId);
               return;
             } else {
               setLoading(false);
@@ -201,11 +224,31 @@ export default function LoginScreen({ onLoginSuccess }) {
       if (data.user) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('mobile, name, level')
+          .select('mobile, name, level, unique_id')
           .eq('id', data.user.id)
           .maybeSingle();
 
-        completeLoginFlow(data.user, profile?.mobile || '', profile?.name || data.user.user_metadata?.full_name || '', profile?.level || 'Rookie Rider');
+        let uniqueId = profile?.unique_id;
+        let mobile = profile?.mobile || data.user.user_metadata?.mobile || '';
+        let name = profile?.name || data.user.user_metadata?.full_name || data.user.email.split('@')[0];
+        let level = profile?.level || 'Rookie Rider';
+
+        if (!profile) {
+          uniqueId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+          await supabase.from('profiles').insert({
+            id: data.user.id,
+            email: data.user.email,
+            mobile: mobile,
+            name: name,
+            level: level,
+            unique_id: uniqueId
+          });
+        } else if (!uniqueId) {
+          uniqueId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+          await supabase.from('profiles').update({ unique_id: uniqueId }).eq('id', data.user.id);
+        }
+
+        completeLoginFlow(data.user, mobile, name, level, uniqueId);
       } else {
         setError('Login failed. Please verify your credentials.');
         setLoading(false);
@@ -397,6 +440,7 @@ export default function LoginScreen({ onLoginSuccess }) {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
+        const generatedId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
         const { error: profileError } = await supabase
           .from('profiles')
           .upsert({
@@ -404,14 +448,15 @@ export default function LoginScreen({ onLoginSuccess }) {
             email: email.trim().toLowerCase(),
             mobile: mobileNumber,
             name: fullName,
-            level: 'Rookie Rider'
+            level: 'Rookie Rider',
+            unique_id: generatedId
           }, { onConflict: 'id' });
 
         if (profileError) {
           console.error('Failed to create profile:', profileError.message);
         }
 
-        completeLoginFlow(user, mobileNumber, fullName, 'Rookie Rider');
+        completeLoginFlow(user, mobileNumber, fullName, 'Rookie Rider', generatedId);
       } else {
         setError('Failed to retrieve user session. Please sign in again.');
         setLoading(false);
@@ -484,11 +529,31 @@ export default function LoginScreen({ onLoginSuccess }) {
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('mobile, name, level')
+          .select('mobile, name, level, unique_id')
           .eq('id', user.id)
           .maybeSingle();
 
-        completeLoginFlow(user, profile?.mobile || '', profile?.name || user.user_metadata?.full_name || '', profile?.level || 'Rookie Rider');
+        let uniqueId = profile?.unique_id;
+        let mobile = profile?.mobile || user.user_metadata?.mobile || '';
+        let name = profile?.name || user.user_metadata?.full_name || user.email.split('@')[0];
+        let level = profile?.level || 'Rookie Rider';
+
+        if (!profile) {
+          uniqueId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+          await supabase.from('profiles').insert({
+            id: user.id,
+            email: user.email,
+            mobile: mobile,
+            name: name,
+            level: level,
+            unique_id: uniqueId
+          });
+        } else if (!uniqueId) {
+          uniqueId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+          await supabase.from('profiles').update({ unique_id: uniqueId }).eq('id', user.id);
+        }
+
+        completeLoginFlow(user, mobile, name, level, uniqueId);
       } else {
         setSuccessMsg('Password reset successful! Please sign in with your new password.');
         setFlowState('SIGN_IN');
@@ -533,7 +598,7 @@ export default function LoginScreen({ onLoginSuccess }) {
   };
 
   // ─── Complete Login & Persist Session ─────────────────
-  const completeLoginFlow = (user, mobile, name, level = 'Rookie Rider') => {
+  const completeLoginFlow = (user, mobile, name, level = 'Rookie Rider', uniqueId = '') => {
     const userData = {
       uid: user.id,
       phone: mobile,
@@ -542,6 +607,7 @@ export default function LoginScreen({ onLoginSuccess }) {
       level: level,
       joined: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
       displayName: name || user.email.split('@')[0],
+      uniqueId: uniqueId
     };
     
     if (rememberMe) {
