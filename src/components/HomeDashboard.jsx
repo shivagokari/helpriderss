@@ -13,7 +13,8 @@ import {
   BIKES_DATABASE, 
   TELANGANA_FUEL,
   INDIAN_CITIES,
-  getFuelPriceForLocation
+  getFuelPriceForLocation,
+  generateLocationWeather
 } from '../utils/geo';
 import { supabase } from '../utils/supabase';
 
@@ -69,6 +70,103 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 3500);
   };
+
+  // Google Weather telemetry states
+  const [weatherData, setWeatherData] = useState(null);
+  const [weatherLoading, setWeatherLoading] = useState(true);
+  const [weatherCity, setWeatherCity] = useState('Hyderabad, Telangana');
+
+  useEffect(() => {
+    const fetchWeather = async (lat, lon, cityName) => {
+      setWeatherLoading(true);
+      try {
+        const response = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&hourly=relativehumidity_2m,windspeed_10m&timezone=auto`
+        );
+        if (!response.ok) throw new Error('Failed to fetch weather');
+        const data = await response.json();
+        
+        // Map WMO Weather Codes to text & symbols (similar to Google Weather)
+        const codeMap = {
+          0: { text: 'Clear Sky', icon: '☀️', bg: 'linear-gradient(to bottom, #1d976c, #93f9b9)' },
+          1: { text: 'Mainly Clear', icon: '🌤️', bg: 'linear-gradient(to bottom, #2980b9, #6dd5fa)' },
+          2: { text: 'Partly Cloudy', icon: '⛅', bg: 'linear-gradient(to bottom, #3a6073, #527080)' },
+          3: { text: 'Overcast', icon: '☁️', bg: 'linear-gradient(to bottom, #bdc3c7, #2c3e50)' },
+          45: { text: 'Foggy', icon: '🌫️', bg: 'linear-gradient(to bottom, #757f9a, #d7dde8)' },
+          48: { text: 'Depositing Rime Fog', icon: '🌫️', bg: 'linear-gradient(to bottom, #757f9a, #d7dde8)' },
+          51: { text: 'Light Drizzle', icon: '🌦️', bg: 'linear-gradient(to bottom, #1f1c2c, #928dab)' },
+          53: { text: 'Moderate Drizzle', icon: '🌦️', bg: 'linear-gradient(to bottom, #1f1c2c, #928dab)' },
+          55: { text: 'Heavy Drizzle', icon: '🌦️', bg: 'linear-gradient(to bottom, #1f1c2c, #928dab)' },
+          61: { text: 'Slight Rain', icon: '🌧️', bg: 'linear-gradient(to bottom, #3a6073, #16222f)' },
+          63: { text: 'Moderate Rain', icon: '🌧️', bg: 'linear-gradient(to bottom, #3a6073, #16222f)' },
+          65: { text: 'Heavy Rain', icon: '🌧️', bg: 'linear-gradient(to bottom, #0f2027, #2c5364)' },
+          71: { text: 'Slight Snowfall', icon: '❄️', bg: 'linear-gradient(to bottom, #e6dada, #274046)' },
+          73: { text: 'Moderate Snowfall', icon: '❄️', bg: 'linear-gradient(to bottom, #e6dada, #274046)' },
+          75: { text: 'Heavy Snowfall', icon: '❄️', bg: 'linear-gradient(to bottom, #e6dada, #274046)' },
+          80: { text: 'Slight Rain Showers', icon: '🌦️', bg: 'linear-gradient(to bottom, #3a6073, #16222f)' },
+          81: { text: 'Moderate Rain Showers', icon: '🌦️', bg: 'linear-gradient(to bottom, #3a6073, #16222f)' },
+          82: { text: 'Violent Rain Showers', icon: '🌧️', bg: 'linear-gradient(to bottom, #0f2027, #203a43)' },
+          95: { text: 'Thunderstorm', icon: '⛈️', bg: 'linear-gradient(to bottom, #4b6cb7, #182848)' }
+        };
+        
+        const weatherInfo = codeMap[data.current_weather.weathercode] || { text: 'Clear Sky', icon: '☀️', bg: 'linear-gradient(to bottom, #1d976c, #93f9b9)' };
+        
+        setWeatherData({
+          temp: `${Math.round(data.current_weather.temperature)}°C`,
+          conditions: weatherInfo.text,
+          icon: weatherInfo.icon,
+          bg: weatherInfo.bg,
+          windSpeed: `${data.current_weather.windspeed} km/h`,
+          humidity: `${data.hourly.relativehumidity_2m[0]}%`,
+          warning: data.current_weather.temperature > 38 ? '🥵 Thermal Alert: Ambient heat exceeds 38°C.' : '🟢 Optimal Telemetry: Normal winds. Excellent riding conditions.'
+        });
+      } catch (err) {
+        console.warn('Live weather api error, falling back to simulator:', err);
+        const sim = generateLocationWeather(lat, lon, new Date().toISOString().split('T')[0]);
+        setWeatherData({
+          temp: sim.temp,
+          conditions: sim.conditions,
+          icon: '⛅',
+          bg: 'linear-gradient(135deg, rgba(28,28,36,0.95) 0%, rgba(18,18,22,0.85) 100%)',
+          windSpeed: sim.wind.split('|')[0].replace('Wind:', '').trim(),
+          humidity: sim.wind.split('|')[1].replace('Humidity:', '').trim(),
+          warning: sim.warning
+        });
+      } finally {
+        setWeatherLoading(false);
+      }
+    };
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+            if (res.ok) {
+              const data = await res.json();
+              const addr = data.address;
+              const city = addr.city || addr.town || addr.village || addr.suburb || "Your Location";
+              const state = addr.state || "";
+              setWeatherCity(state ? `${city}, ${state}` : city);
+              fetchWeather(latitude, longitude, city);
+            } else {
+              fetchWeather(latitude, longitude, 'Current Location');
+            }
+          } catch {
+            fetchWeather(latitude, longitude, 'Current Location');
+          }
+        },
+        () => {
+          setWeatherCity('Hyderabad, Telangana');
+          fetchWeather(17.3850, 78.4867, 'Hyderabad');
+        }
+      );
+    } else {
+      setWeatherCity('Hyderabad, Telangana');
+      fetchWeather(17.3850, 78.4867, 'Hyderabad');
+    }
+  }, []);
 
   const fetchAllNotifications = async () => {
     if (!user || !user.uid) return;
@@ -401,24 +499,72 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
         </div>
       </div>
 
-      {/* Weather Overview */}
-      <div className="glass-panel" style={{ padding: '16px', marginBottom: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
-        <div style={{ background: 'rgba(0, 176, 255, 0.1)', padding: '12px', borderRadius: '16px' }}>
-          <CloudSun size={32} color="var(--info)" />
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <h4 style={{ fontSize: '16px' }}>Clear for Cruising</h4>
-            <span style={{ fontSize: '20px', fontWeight: 'bold' }}>28°C</span>
+      {/* Weather Overview (Google Weather Styled) */}
+      <div 
+        className="glass-panel" 
+        style={{ 
+          padding: '20px', 
+          marginBottom: '20px', 
+          background: weatherData ? weatherData.bg : 'linear-gradient(135deg, rgba(28,28,36,0.95) 0%, rgba(18,18,22,0.85) 100%)',
+          color: 'white',
+          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.45)',
+          border: '1.5px solid var(--glass-border)',
+          transition: 'all 0.4s ease',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.8 }}>🌤️ Live Google Weather</span>
+            <h3 style={{ fontSize: '18px', fontWeight: 'bold', fontFamily: 'var(--font-display)', marginTop: '2px' }}>{weatherCity}</h3>
           </div>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '2px' }}>
-            Wind: 14 km/h NW | Humidity: 45%
-          </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255,170,0,0.1)', border: '1px solid rgba(255,170,0,0.15)', borderRadius: '6px', padding: '4px 8px', marginTop: '8px', fontSize: '10px', color: 'var(--secondary)' }}>
-            <AlertTriangle size={10} />
-            <span>Riding Alert: Rain expected on mountain passes later today.</span>
-          </div>
+          <span style={{ fontSize: '36px' }}>{weatherData ? weatherData.icon : '🌤️'}</span>
         </div>
+
+        {weatherLoading ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 0' }}>
+            <div style={{ width: '16px', height: '16px', border: '2px solid transparent', borderTopColor: 'white', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
+            <span style={{ fontSize: '12px', opacity: 0.8 }}>Syncing weather telemetry...</span>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+              <span style={{ fontSize: '42px', fontWeight: '800', fontFamily: 'var(--font-display)' }}>{weatherData ? weatherData.temp : '--°C'}</span>
+              <span style={{ fontSize: '14px', fontWeight: '600', opacity: 0.9 }}>{weatherData ? weatherData.conditions : 'Checking...'}</span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: 'rgba(0,0,0,0.2)', padding: '10px 14px', borderRadius: '12px', fontSize: '12px' }}>
+              <div>
+                <span style={{ opacity: 0.6, display: 'block', fontSize: '10px', marginBottom: '2px' }}>💨 Wind Speed</span>
+                <strong>{weatherData ? weatherData.windSpeed : '--'}</strong>
+              </div>
+              <div>
+                <span style={{ opacity: 0.6, display: 'block', fontSize: '10px', marginBottom: '2px' }}>💧 Humidity</span>
+                <strong>{weatherData ? weatherData.humidity : '--'}</strong>
+              </div>
+            </div>
+
+            {weatherData && weatherData.warning && (
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px', 
+                background: weatherData.warning.includes('🟢') ? 'rgba(0, 230, 118, 0.1)' : 'rgba(255, 34, 51, 0.1)', 
+                border: `1px solid ${weatherData.warning.includes('🟢') ? 'rgba(0, 230, 118, 0.2)' : 'rgba(255, 34, 51, 0.2)'}`, 
+                borderRadius: '8px', 
+                padding: '6px 10px', 
+                fontSize: '11px', 
+                color: weatherData.warning.includes('🟢') ? 'var(--success)' : 'var(--accent)',
+                marginTop: '4px'
+              }}>
+                <span style={{ fontSize: '13px' }}>⚠️</span>
+                <span>{weatherData.warning}</span>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Ride Quick Stats */}

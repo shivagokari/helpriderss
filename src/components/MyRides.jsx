@@ -12,6 +12,7 @@ function ReplayMap({ ride }) {
 
   // Approximate coordinate locks for default locations
   const getCoordinates = (locName, defaultCoords) => {
+    if (!locName) return defaultCoords;
     const name = locName.toLowerCase();
     if (name.includes('manali')) return [32.2396, 77.1887];
     if (name.includes('leh')) return [34.1526, 77.5771];
@@ -25,9 +26,12 @@ function ReplayMap({ ride }) {
   useEffect(() => {
     if (!mapContainerRef.current || !window.L) return;
 
+    const startLoc = ride.startLocation || (ride.formData && ride.formData.startLocation) || '';
+    const destLoc = ride.destination || (ride.formData && ride.formData.destination) || '';
+
     // Determine start and destination points
-    const startPoint = getCoordinates(ride.startLocation, [17.3850, 78.4867]);
-    const endPoint = getCoordinates(ride.destination, [17.9689, 79.5941]);
+    const startPoint = getCoordinates(startLoc, [17.3850, 78.4867]);
+    const endPoint = getCoordinates(destLoc, [17.9689, 79.5941]);
 
     // Initialize Leaflet Map
     const map = window.L.map(mapContainerRef.current, {
@@ -211,7 +215,7 @@ export default function MyRides({ rides, onOpenReplay, onEditRide, onDeleteRide,
 
                 {/* Subtitle location summary */}
                 <p style={{ color: 'var(--text-secondary)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '14px' }}>
-                  <MapPin size={12} color="var(--primary)" /> {ride.startLocation} ➔ {ride.destination}
+                  <MapPin size={12} color="var(--primary)" /> {ride.startLocation || (ride.formData && ride.formData.startLocation) || ''} ➔ {ride.destination || (ride.formData && ride.formData.destination) || ''}
                 </p>
 
                 {/* Quick Stats Grid */}
@@ -289,7 +293,7 @@ export default function MyRides({ rides, onOpenReplay, onEditRide, onDeleteRide,
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                         <span style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 'bold' }}>📡 Google Maps Telemetry Replay</span>
                         <a 
-                          href={ride.mapsLink || generateGoogleMapsLink(ride.startLocation, ride.destination)}
+                          href={ride.mapsLink || generateGoogleMapsLink(ride.startLocation || (ride.formData && ride.formData.startLocation) || '', ride.destination || (ride.formData && ride.formData.destination) || '')}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn-primary" 

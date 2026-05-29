@@ -9,7 +9,7 @@ import { supabase } from '../utils/supabase';
 
 // ─── Outside component to prevent keyboard re-mount ────────────────────────
 const inputStyle = { width: '100%', padding: '10px 12px', fontSize: '13px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', boxSizing: 'border-box' };
-const smallInputStyle = { flex: 1, padding: '8px 10px', fontSize: '11px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', boxSizing: 'border-box' };
+const smallInputStyle = { flex: 1, padding: '8px 10px', fontSize: '11px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', boxSizing: 'border-box', minWidth: '0' };
 
 export default function Profile({ user, onLogout, rides }) {
   // ── Avatar ────────────────────────────────────────────────────────────────
