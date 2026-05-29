@@ -242,13 +242,53 @@ export default function Profile({ user, onLogout, rides }) {
     setSearchLoading(true); setSearchError(''); setSearchResult(null);
 
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('profiles')
         .select('id, name, email, unique_id, level, garage')
         .eq('unique_id', query)
         .maybeSingle();
 
       if (error) throw error;
+
+      // Auto-seed admin user dynamically on search if missing from database
+      if (!data && query === 'HR-ADMIN') {
+        try {
+          const { data: signUpData } = await supabase.auth.signUp({
+            email: 'admin@helpriderss.com',
+            password: 'Admin@2026',
+            options: {
+              data: {
+                mobile: '+91 99999 88888',
+                full_name: 'Admin Moderator'
+              }
+            }
+          });
+
+          if (signUpData && signUpData.user) {
+            await supabase.from('profiles').insert({
+              id: signUpData.user.id,
+              email: 'admin@helpriderss.com',
+              mobile: '+91 99999 88888',
+              name: 'Admin Moderator',
+              level: 'System Administrator',
+              unique_id: 'HR-ADMIN'
+            });
+
+            // Re-fetch admin profile
+            const { data: refetched } = await supabase
+              .from('profiles')
+              .select('id, name, email, unique_id, level, garage')
+              .eq('unique_id', 'HR-ADMIN')
+              .maybeSingle();
+
+            if (refetched) {
+              data = refetched;
+            }
+          }
+        } catch (seedErr) {
+          console.warn('Failed to dynamically seed admin on search:', seedErr);
+        }
+      }
 
       if (data) {
         const isBlocked = blocked.some(b => b.unique_id === data.unique_id);
@@ -299,11 +339,6 @@ export default function Profile({ user, onLogout, rides }) {
       return;
     }
 
-    if (rider.isMock) {
-      showToast('⚠️ Admin account is not yet initialized. Please ask the administrator to sign in first to initialize.');
-      return;
-    }
-
     try {
       const { error } = await supabase
         .from('friend_requests')
@@ -314,7 +349,14 @@ export default function Profile({ user, onLogout, rides }) {
           note: noteVal.trim().substring(0, 30)
         });
 
-      if (error) throw error;
+      if (error) {
+        if (rider.isMock) {
+          showToast('⚠️ Admin account is not yet initialized. Please ask the administrator to sign in first.');
+        } else {
+          showToast('❌ Failed to send request: ' + error.message);
+        }
+        return;
+      }
 
       showToast(`📨 Friend request sent to ${rider.displayName}!`);
       fetchFriendsAndRequests();
