@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   User, Award, Bike, PhoneCall, ShieldAlert, 
   LogOut, Plus, Trash2,
-  Camera, MessageSquare, Send, X, MapPin, HeadphonesIcon
+  Camera, MessageSquare, Send, X, MapPin, Headphones
 } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 
@@ -604,7 +604,7 @@ export default function Profile({ user, onLogout, rides }) {
       {/* Contact Developer Section */}
       <div className="glass-panel" style={{ padding: '16px', marginBottom: '16px', border: '1px solid rgba(255, 170, 0, 0.15)' }}>
         <h4 style={{ fontSize: '15px', color: 'white', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <HeadphonesIcon size={16} color="#ffaa00" /> Contact Developer
+          <Headphones size={16} color="#ffaa00" /> Contact Developer
         </h4>
         <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '14px', lineHeight: '1.5' }}>
           Have a suggestion or issue? Drop your details and we'll reach out to you directly.
