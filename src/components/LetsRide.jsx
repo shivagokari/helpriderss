@@ -35,6 +35,7 @@ export default function LetsRide({ user }) {
     crewType: 'Solo'
   });
 
+  const [bikeSuggestions, setBikeSuggestions] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [activeNotification, setActiveNotification] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
@@ -315,6 +316,13 @@ export default function LetsRide({ user }) {
     e.preventDefault();
     if (!joinForm.name || !joinForm.bikeModel || !joinForm.phone || !joinForm.age) {
       showToast('⚠️ Please fill out all details correctly.');
+      return;
+    }
+
+    const cleanPhone = joinForm.phone.replace(/[\s\-()]/g, '');
+    const indianPhoneRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
+    if (!indianPhoneRegex.test(cleanPhone)) {
+      showToast('⚠️ Please enter a valid 10-digit Indian phone number.');
       return;
     }
 
@@ -840,16 +848,73 @@ export default function LetsRide({ user }) {
                 />
               </div>
 
-              <div>
+              <div style={{ position: 'relative' }}>
                 <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Your Bike Model</label>
                 <input 
                   type="text" 
                   required
                   placeholder="e.g. Royal Enfield Himalayan 450"
                   value={joinForm.bikeModel}
-                  onChange={(e) => handleJoinInputChange('bikeModel', e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    handleJoinInputChange('bikeModel', val);
+                    if (!val.trim()) {
+                      setBikeSuggestions([]);
+                      return;
+                    }
+                    const filtered = BIKES_DATABASE.filter(b => 
+                      b.name.toLowerCase().includes(val.toLowerCase())
+                    ).slice(0, 5);
+                    setBikeSuggestions(filtered);
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => setBikeSuggestions([]), 200);
+                  }}
                   style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
                 />
+                {bikeSuggestions.length > 0 && (
+                  <div 
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      zIndex: 150,
+                      background: 'rgba(18, 18, 22, 0.98)',
+                      border: '1.5px solid var(--glass-border)',
+                      borderRadius: '10px',
+                      marginTop: '4px',
+                      maxHeight: '150px',
+                      overflowY: 'auto',
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                      backdropFilter: 'blur(10px)'
+                    }}
+                  >
+                    {bikeSuggestions.map((bike, idx) => (
+                      <div
+                        key={idx}
+                        onMouseDown={() => {
+                          handleJoinInputChange('bikeModel', bike.name);
+                          setBikeSuggestions([]);
+                        }}
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '12px',
+                          color: 'white',
+                          cursor: 'pointer',
+                          borderBottom: idx < bikeSuggestions.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}
+                        className="suggestion-item"
+                      >
+                        <span>🏍️ {bike.name}</span>
+                        <span style={{ fontSize: '9px', color: 'var(--text-secondary)' }}>{bike.type}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>

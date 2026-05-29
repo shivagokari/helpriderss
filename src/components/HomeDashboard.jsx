@@ -3,7 +3,7 @@ import {
   CloudSun, Droplet, Gauge, MapPin, Calendar, Fuel, 
   Sparkles, Navigation, AlertTriangle, 
   Wrench, Share2, Bell, AlertCircle, CheckSquare, Square,
-  Plus, Trash2, Clock
+  Plus, Trash2, Clock, X
 } from 'lucide-react';
 import { 
   searchLocationInIndia, 
@@ -15,6 +15,7 @@ import {
   INDIAN_CITIES,
   getFuelPriceForLocation
 } from '../utils/geo';
+import { supabase } from '../utils/supabase';
 
 const ESSENTIALS = [
   { id: 'helmet', label: '🪖 Helmet', desc: 'Full-face or modular' },
@@ -57,6 +58,157 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
   const [newReminderTitle, setNewReminderTitle] = useState('');
   const [newReminderDate, setNewReminderDate] = useState('');
   const [showAddReminder, setShowAddReminder] = useState(false);
+
+  // Crew notifications states
+  const [pendingFriendRequests, setPendingFriendRequests] = useState([]);
+  const [pendingRideRequests, setPendingRideRequests] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 3500);
+  };
+
+  const fetchAllNotifications = async () => {
+    if (!user || !user.uid) return;
+
+    // 1. Fetch Ride Join Requests from localStorage
+    const savedRides = JSON.parse(localStorage.getItem('helpriders_social_rides') || '[]');
+    const rideReqs = [];
+    savedRides.forEach(ride => {
+      const isOwner = ride.creatorEmail === user.email || (ride.creator === 'You (Host)' && !ride.creatorEmail);
+      if (isOwner && ride.joinRequests) {
+        ride.joinRequests.forEach(req => {
+          if (req.status === 'Pending') {
+            rideReqs.push({
+              ...req,
+              rideId: ride.id,
+              rideTitle: ride.title
+            });
+          }
+        });
+      }
+    });
+    setPendingRideRequests(rideReqs);
+
+    // 2. Fetch Friend Requests from Supabase
+    try {
+      const { data: records, error } = await supabase
+        .from('friend_requests')
+        .select('*')
+        .eq('to_id', user.uid)
+        .eq('status', 'pending');
+
+      if (!error && records) {
+        const fromIds = records.map(r => r.from_id);
+        if (fromIds.length > 0) {
+          const { data: profs } = await supabase
+            .from('profiles')
+            .select('id, name, email, unique_id, level, garage')
+            .in('id', fromIds);
+
+          const profileMap = {};
+          if (profs) {
+            profs.forEach(p => { profileMap[p.id] = p; });
+          }
+
+          const mapped = records.map(r => {
+            const sender = profileMap[r.from_id];
+            return {
+              id: r.id,
+              uid: r.from_id, // sender ID
+              displayName: sender ? (sender.name || sender.email.split('@')[0]) : 'Rider',
+              level: sender ? (sender.level || 'Rookie Rider') : 'Rookie Rider',
+              bike: sender && sender.garage && sender.garage.length > 0 ? sender.garage[0].name : 'Unknown Bike'
+            };
+          });
+          setPendingFriendRequests(mapped);
+        } else {
+          setPendingFriendRequests([]);
+        }
+      }
+    } catch (err) {
+      console.warn('Error fetching friend requests:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllNotifications();
+  }, [user]);
+
+  const handleAcceptFriendRequest = async (req) => {
+    try {
+      const { error } = await supabase
+        .from('friend_requests')
+        .update({ status: 'accepted' })
+        .eq('from_id', req.uid)
+        .eq('to_id', user.uid);
+
+      if (error) throw error;
+
+      showToast(`✅ Connected with ${req.displayName}!`);
+      fetchAllNotifications();
+    } catch (err) {
+      console.error(err);
+      showToast('❌ Failed to accept request.');
+    }
+  };
+
+  const handleDeclineFriendRequest = async (req) => {
+    try {
+      const { error } = await supabase
+        .from('friend_requests')
+        .delete()
+        .eq('from_id', req.uid)
+        .eq('to_id', user.uid);
+
+      if (error) throw error;
+      showToast('❌ Declined friend request.');
+      fetchAllNotifications();
+    } catch (err) {
+      console.error(err);
+      showToast('❌ Failed to decline request.');
+    }
+  };
+
+  const handleAcceptRideRequest = (rideId, reqId, requesterName) => {
+    const savedRides = JSON.parse(localStorage.getItem('helpriders_social_rides') || '[]');
+    const updated = savedRides.map(r => {
+      if (r.id === rideId) {
+        const reqs = r.joinRequests.map(req => {
+          if (req.id === reqId) {
+            return { ...req, status: 'Accepted' };
+          }
+          return req;
+        });
+        return { ...r, joinedCount: r.joinedCount + 1, joinRequests: reqs };
+      }
+      return r;
+    });
+    localStorage.setItem('helpriders_social_rides', JSON.stringify(updated));
+    showToast(`✅ Accepted ${requesterName} into crew!`);
+    fetchAllNotifications();
+  };
+
+  const handleDeclineRideRequest = (rideId, reqId, requesterName) => {
+    const savedRides = JSON.parse(localStorage.getItem('helpriders_social_rides') || '[]');
+    const updated = savedRides.map(r => {
+      if (r.id === rideId) {
+        const reqs = r.joinRequests.map(req => {
+          if (req.id === reqId) {
+            return { ...req, status: 'Declined' };
+          }
+          return req;
+        });
+        return { ...r, joinRequests: reqs };
+      }
+      return r;
+    });
+    localStorage.setItem('helpriders_social_rides', JSON.stringify(updated));
+    showToast(`Declined request from ${requesterName}`);
+    fetchAllNotifications();
+  };
 
   useEffect(() => {
     localStorage.setItem('helpriders_reminders', JSON.stringify(reminders));
@@ -213,16 +365,39 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
         <div style={{ display: 'flex', gap: '10px' }}>
           <button 
             style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}
-            onClick={() => setShowAddReminder(true)}
+            onClick={() => {
+              fetchAllNotifications();
+              setShowNotifications(true);
+            }}
           >
             <Bell size={18} />
-            {reminders.filter(r => !r.done).length > 0 && (
-              <span style={{ position: 'absolute', top: '8px', right: '8px', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--primary)' }}></span>
+            {(pendingFriendRequests.length + pendingRideRequests.length) > 0 && (
+              <span style={{ 
+                position: 'absolute', 
+                top: '-4px', 
+                right: '-4px', 
+                background: 'var(--accent)', 
+                color: 'white', 
+                fontSize: '8px', 
+                fontWeight: 'bold', 
+                borderRadius: '50%', 
+                width: '16px', 
+                height: '16px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                border: '1.5px solid #0d0d12'
+              }}>
+                {pendingFriendRequests.length + pendingRideRequests.length}
+              </span>
             )}
           </button>
-          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 'bold' }}>
+          <button 
+            style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 'bold', border: 'none', color: 'white', cursor: 'pointer' }}
+            onClick={() => onTabChange('profile')}
+          >
             {(user?.displayName || 'R')[0].toUpperCase()}
-          </div>
+          </button>
         </div>
       </div>
 
@@ -526,6 +701,141 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
           </div>
         </div>
       </div>
+
+      {/* Crew notifications drawer */}
+      {showNotifications && (
+        <div className="bottom-sheet-overlay animate-fade-in" style={{ zIndex: 120, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowNotifications(false)}>
+          <div className="glass-panel animate-zoom-in" style={{ width: '90%', maxWidth: '380px', background: '#121217', maxHeight: '80vh', overflowY: 'auto', padding: '24px 20px', borderRadius: '20px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '18px', color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Bell size={20} color="var(--primary)" /> Crew Deck Notifications
+              </h3>
+              <button onClick={() => setShowNotifications(false)} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {pendingRideRequests.length === 0 && pendingFriendRequests.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--text-muted)' }}>
+                <Bell size={32} style={{ margin: '0 auto 12px', opacity: 0.3, display: 'block' }} />
+                <p style={{ fontSize: '13px' }}>All quiet on the crew deck! 🏍️</p>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>No pending ride or friend requests.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
+                {/* Ride Requests Section */}
+                {pendingRideRequests.length > 0 && (
+                  <div>
+                    <h4 style={{ fontSize: '13px', color: 'var(--primary)', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px', marginBottom: '10px', fontWeight: 'bold' }}>
+                      🏍️ Ride Join Requests ({pendingRideRequests.length})
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {pendingRideRequests.map((req) => (
+                        <div key={req.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', padding: '12px', borderRadius: '12px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', fontWeight: 'bold' }}>
+                            <span>👤 {req.name} (Age: {req.age})</span>
+                            <span style={{ color: 'var(--secondary)' }}>{req.crewType}</span>
+                          </div>
+                          <div style={{ color: 'var(--text-secondary)' }}>
+                            Wants to join: <strong style={{ color: 'white' }}>{req.rideTitle}</strong>
+                          </div>
+                          <div style={{ color: 'var(--text-secondary)' }}>
+                            Bike: {req.bikeModel} | Phone: {req.phone}
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                            <button 
+                              className="btn-secondary" 
+                              style={{ flex: 1, padding: '6px 10px', fontSize: '10.5px', borderRadius: '8px', background: 'rgba(255, 23, 68, 0.1)', borderColor: 'rgba(255, 23, 68, 0.3)', color: '#ff1744' }}
+                              onClick={() => handleDeclineRideRequest(req.rideId, req.id, req.name)}
+                            >
+                              Decline
+                            </button>
+                            <button 
+                              className="btn-primary" 
+                              style={{ flex: 1.5, padding: '6px 10px', fontSize: '10.5px', borderRadius: '8px', background: 'linear-gradient(135deg, #00e676 0%, #00b0ff 100%)', border: 'none', color: 'white' }}
+                              onClick={() => handleAcceptRideRequest(req.rideId, req.id, req.name)}
+                            >
+                              Accept
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Friend Requests Section */}
+                {pendingFriendRequests.length > 0 && (
+                  <div>
+                    <h4 style={{ fontSize: '13px', color: 'var(--info)', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px', marginBottom: '10px', fontWeight: 'bold' }}>
+                      🤝 Friend Requests ({pendingFriendRequests.length})
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {pendingFriendRequests.map((req) => (
+                        <div key={req.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', padding: '12px', borderRadius: '12px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', fontWeight: 'bold' }}>
+                            <span>👤 {req.displayName}</span>
+                            <span style={{ color: 'var(--info)' }}>{req.level}</span>
+                          </div>
+                          <div style={{ color: 'var(--text-secondary)' }}>
+                            Garage: {req.bike}
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                            <button 
+                              className="btn-secondary" 
+                              style={{ flex: 1, padding: '6px 10px', fontSize: '10.5px', borderRadius: '8px', background: 'rgba(255, 23, 68, 0.1)', borderColor: 'rgba(255, 23, 68, 0.3)', color: '#ff1744' }}
+                              onClick={() => handleDeclineFriendRequest(req)}
+                            >
+                              Decline
+                            </button>
+                            <button 
+                              className="btn-primary" 
+                              style={{ flex: 1.5, padding: '6px 10px', fontSize: '10.5px', borderRadius: '8px', background: 'linear-gradient(135deg, #00b0ff 0%, #00e676 100%)', border: 'none', color: 'white' }}
+                              onClick={() => handleAcceptFriendRequest(req)}
+                            >
+                              Accept
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Custom In-App Toast Notification */}
+      {toastMessage && (
+        <div 
+          className="animate-slide-up"
+          style={{
+            position: 'absolute',
+            bottom: '90px',
+            left: '16px',
+            right: '16px',
+            zIndex: 200,
+            background: 'rgba(18, 18, 22, 0.95)',
+            border: '1.5px solid var(--primary)',
+            borderRadius: '12px',
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            boxShadow: '0 8px 32px rgba(255, 85, 0, 0.25)',
+            color: 'white',
+            fontWeight: 'bold',
+            fontSize: '13px'
+          }}
+        >
+          <span style={{ fontSize: '18px' }}>🏍️</span>
+          <span>{toastMessage}</span>
+        </div>
+      )}
 
       {/* Footer spacer */}
       <div style={{ height: '40px' }} />

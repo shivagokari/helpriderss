@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { 
   Home, PlusCircle, History, Map, User, Users, X, Info, 
   Download, Navigation, CheckCircle, ShieldAlert, Sparkles, Bell, Phone
@@ -27,6 +27,7 @@ export default function App() {
     return null;
   });
   const [activeTab, setActiveTab] = useState('home');
+  const [showBottomNav, setShowBottomNav] = useState(true);
   const [newRideOpen, setNewRideOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -318,6 +319,31 @@ export default function App() {
     }
   }, [user]);
 
+  // Scroll detection to auto-hide bottom navigation bar
+  const lastScrollTop = useRef(0);
+  useEffect(() => {
+    const handleScroll = (event) => {
+      const target = event.target;
+      if (target && target.classList && target.classList.contains('scroll-y')) {
+        const scrollTop = target.scrollTop;
+        if (scrollTop > lastScrollTop.current && scrollTop > 50) {
+          setShowBottomNav(false);
+        } else {
+          setShowBottomNav(true);
+        }
+        lastScrollTop.current = scrollTop;
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { capture: true });
+    return () => window.removeEventListener('scroll', handleScroll, { capture: true });
+  }, []);
+
+  // Show bottom nav on tab changes
+  useEffect(() => {
+    setShowBottomNav(true);
+  }, [activeTab]);
+
   if (!user) {
     return (
       <div className="app-shell animate-fade-in">
@@ -421,6 +447,10 @@ export default function App() {
           className="fab" 
           onClick={() => setNewRideOpen(true)}
           title="Plan new ride"
+          style={{
+            bottom: showBottomNav ? '85px' : '20px',
+            transition: 'bottom 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'
+          }}
         >
           <PlusCircle size={28} />
         </button>
@@ -443,7 +473,9 @@ export default function App() {
           padding: '0 10px',
           zIndex: 85,
           background: 'rgba(10, 10, 12, 0.95)',
-          paddingBottom: 'env(safe-area-inset-bottom)' // For notched mobile devices
+          paddingBottom: 'env(safe-area-inset-bottom)', // For notched mobile devices
+          transform: showBottomNav ? 'translateY(0)' : 'translateY(100%)',
+          transition: 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'
         }}
       >
         <button 
