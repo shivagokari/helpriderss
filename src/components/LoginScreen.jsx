@@ -297,8 +297,8 @@ export default function LoginScreen({ onLoginSuccess }) {
       return;
     }
 
-    if (password.length !== 6) {
-      setError('Password must be exactly 6 characters long');
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long');
       return;
     }
 
@@ -484,8 +484,8 @@ export default function LoginScreen({ onLoginSuccess }) {
   // ─── Create Password (after sign-up OTP verify) ───────
   const handleCreatePassword = async (e) => {
     e.preventDefault();
-    if (newPassword.length !== 6) {
-      setError('Password must be exactly 6 characters long');
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters long');
       return;
     }
     setError('');
@@ -573,8 +573,8 @@ export default function LoginScreen({ onLoginSuccess }) {
   // ─── Reset Password (after forgot-password OTP verify) ─
   const handleResetPassword = async (e) => {
     e.preventDefault();
-    if (newPassword.length !== 6) {
-      setError('Password must be exactly 6 characters long');
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters long');
       return;
     }
     setError('');

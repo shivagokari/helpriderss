@@ -192,6 +192,12 @@ export default function App() {
     setTimeout(() => setToastMessage(''), 3500);
   };
 
+  const handleCompleteRide = (rideId) => {
+    setCustomRides(prev => prev.map(r => r.id === rideId ? { ...r, status: 'Completed' } : r));
+    setToastMessage('🎉 Ride successfully completed!');
+    setTimeout(() => setToastMessage(''), 3000);
+  };
+
   const handleToggleFavorite = (rideId) => {
     setCustomRides(prev => prev.map(r => {
       if (r.id === rideId) {
@@ -328,6 +334,7 @@ export default function App() {
               }}
               onDeleteRide={handleDeleteRide}
               onToggleFavoriteRide={handleToggleFavorite}
+              onCompleteRide={handleCompleteRide}
             />
           )}
           

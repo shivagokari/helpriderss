@@ -99,7 +99,37 @@ function ReplayMap({ ride }) {
   );
 }
 
-export default function MyRides({ rides, onOpenReplay, onEditRide, onDeleteRide, onToggleFavoriteRide }) {
+const isRideTimePassed = (ride) => {
+  if (!ride.formData || !ride.formData.rideDates) return false;
+  
+  const dateStr = ride.formData.rideDates;
+  const timingStr = ride.formData.rideTiming || '';
+  
+  let endHour = 23;
+  let endMinute = 59;
+  
+  if (timingStr.includes('Dawn')) {
+    endHour = 6;
+    endMinute = 0;
+  } else if (timingStr.includes('Morning')) {
+    endHour = 12;
+    endMinute = 0;
+  } else if (timingStr.includes('Afternoon')) {
+    endHour = 16;
+    endMinute = 0;
+  } else if (timingStr.includes('Sunset') || timingStr.includes('Night')) {
+    endHour = 21;
+    endMinute = 0;
+  }
+  
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const rideEndDateTime = new Date(year, month - 1, day, endHour, endMinute);
+  const now = new Date();
+  
+  return now > rideEndDateTime;
+};
+
+export default function MyRides({ rides, onOpenReplay, onEditRide, onDeleteRide, onToggleFavoriteRide, onCompleteRide }) {
   const [filter, setFilter] = useState('All'); // All, Upcoming, Completed, Saved
   const [expandedRideId, setExpandedRideId] = useState(null);
   const [confirmDeleteRideId, setConfirmDeleteRideId] = useState(null);
@@ -257,6 +287,29 @@ export default function MyRides({ rides, onOpenReplay, onEditRide, onDeleteRide,
                   
                   {ride.status === 'Upcoming' && (
                     <div style={{ display: 'flex', gap: '6px' }}>
+                      {isRideTimePassed(ride) && onCompleteRide && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onCompleteRide(ride.id);
+                          }}
+                          style={{
+                            padding: '4px 10px',
+                            fontSize: '10px',
+                            borderRadius: '6px',
+                            background: 'rgba(0, 230, 118, 0.1)',
+                            border: '1px solid rgba(0, 230, 118, 0.25)',
+                            color: 'var(--success)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            fontWeight: '600'
+                          }}
+                        >
+                          ✓ Mark Completed
+                        </button>
+                      )}
                       {onEditRide && (
                         <button
                           onClick={(e) => {
