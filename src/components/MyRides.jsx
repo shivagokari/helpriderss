@@ -133,8 +133,18 @@ export default function MyRides({ rides, onOpenReplay, onEditRide, onDeleteRide,
   const [filter, setFilter] = useState('All'); // All, Upcoming, Completed, Saved
   const [expandedRideId, setExpandedRideId] = useState(null);
   const [confirmDeleteRideId, setConfirmDeleteRideId] = useState(null);
-  
-  // (the rest of MyRides state and defaultRides remains unchanged...)
+  const [ratingModalRide, setRatingModalRide] = useState(null); // ride to rate
+  const [hoverRating, setHoverRating] = useState(0);
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [localRatings, setLocalRatings] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('helpriders_ride_ratings') || '{}'); } catch { return {}; }
+  });
+
+  const saveRating = (rideId, rating) => {
+    const updated = { ...localRatings, [rideId]: rating };
+    setLocalRatings(updated);
+    localStorage.setItem('helpriders_ride_ratings', JSON.stringify(updated));
+  };
 
 
   const filteredRides = rides.filter(ride => {
@@ -287,11 +297,13 @@ export default function MyRides({ rides, onOpenReplay, onEditRide, onDeleteRide,
                   
                   {ride.status === 'Upcoming' && (
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      {isRideTimePassed(ride) && onCompleteRide && (
+                      {isRideTimePassed(ride) && ride.status !== 'Completed' && onCompleteRide && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            onCompleteRide(ride.id);
+                            setRatingModalRide(ride);
+                            setSelectedRating(0);
+                            setHoverRating(0);
                           }}
                           style={{
                             padding: '4px 10px',
@@ -408,39 +420,26 @@ export default function MyRides({ rides, onOpenReplay, onEditRide, onDeleteRide,
                         </div>
                       </div>
                       <div style={{ background: '#121216', padding: '10px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Star size={20} color="var(--secondary)" fill="var(--secondary)" />
+                        <Star size={20} color="var(--secondary)" fill={localRatings[ride.id] ? 'var(--secondary)' : 'none'} />
                         <div>
                           <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block' }}>Trip Rating</span>
-                          <span style={{ fontSize: '11px', color: 'white', fontWeight: '500' }}>{ride.rating} / 5.0 Rating</span>
+                          {localRatings[ride.id] ? (
+                            <div style={{ display: 'flex', gap: '2px' }}>
+                              {[1,2,3,4,5].map(s => (
+                                <Star key={s} size={12} color="var(--secondary)" fill={s <= localRatings[ride.id] ? 'var(--secondary)' : 'none'} />
+                              ))}
+                            </div>
+                          ) : (
+                            ride.status === 'Completed' ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setRatingModalRide(ride); setSelectedRating(0); setHoverRating(0); }}
+                                style={{ background: 'none', border: 'none', color: 'var(--secondary)', fontSize: '10px', cursor: 'pointer', padding: 0, fontWeight: '600' }}
+                              >Rate this ride ★</button>
+                            ) : (
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>Not rated</span>
+                            )
+                          )}
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Photo memories */}
-                    <div>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>📸 Memories & Snapshots</span>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                        {ride.photos.map((ph, idx) => (
-                          <div 
-                            key={idx} 
-                            style={{ 
-                              aspectRatio: '1', 
-                              borderRadius: '8px', 
-                              background: '#1c1c24', 
-                              border: '1px solid rgba(255,255,255,0.05)', 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center',
-                              fontSize: '11px',
-                              color: 'var(--text-secondary)',
-                              fontWeight: '600',
-                              flexDirection: 'column',
-                              gap: '4px'
-                            }}
-                          >
-                            <span>{ph}</span>
-                          </div>
-                        ))}
                       </div>
                     </div>
 
@@ -453,6 +452,93 @@ export default function MyRides({ rides, onOpenReplay, onEditRide, onDeleteRide,
         )}
       </div>
 
+      {/* ─── Rate this Ride Modal ─── */}
+      {ratingModalRide && (
+        <div
+          className="bottom-sheet-overlay animate-fade-in"
+          onClick={() => setRatingModalRide(null)}
+        >
+          <div
+            className="bottom-sheet animate-zoom-in"
+            onClick={(e) => e.stopPropagation()}
+            style={{ padding: '24px 20px', textAlign: 'center' }}
+          >
+            <div style={{ fontSize: '36px', marginBottom: '8px' }}>⭐</div>
+            <h3 style={{ fontSize: '17px', color: 'white', marginBottom: '4px' }}>
+              Rate This Ride
+            </h3>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: '1.4' }}>
+              {ratingModalRide.title || 'Your Ride'} — how was it?
+            </p>
+
+            {/* Star selector */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '20px' }}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onMouseEnter={() => setHoverRating(star)}
+                  onMouseLeave={() => setHoverRating(0)}
+                  onClick={() => setSelectedRating(star)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    transition: 'transform 0.1s',
+                    transform: (hoverRating || selectedRating) >= star ? 'scale(1.2)' : 'scale(1)'
+                  }}
+                >
+                  <Star
+                    size={36}
+                    color="var(--secondary)"
+                    fill={(hoverRating || selectedRating) >= star ? 'var(--secondary)' : 'none'}
+                  />
+                </button>
+              ))}
+            </div>
+
+            {selectedRating > 0 && (
+              <p style={{ fontSize: '13px', color: 'var(--secondary)', marginBottom: '16px', fontWeight: '600' }}>
+                {['', 'Poor 😞', 'Fair 😐', 'Good 🙂', 'Great 😄', 'Excellent 🔥'][selectedRating]}
+              </p>
+            )}
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setRatingModalRide(null)}
+                className="btn-secondary"
+                style={{ flex: 1, padding: '12px', fontSize: '13px' }}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={selectedRating === 0}
+                onClick={() => {
+                  saveRating(ratingModalRide.id, selectedRating);
+                  if (onCompleteRide) onCompleteRide(ratingModalRide.id);
+                  setRatingModalRide(null);
+                }}
+                style={{
+                  flex: 2,
+                  padding: '12px',
+                  background: selectedRating > 0
+                    ? 'linear-gradient(135deg, #00e676, #00b248)'
+                    : 'rgba(255,255,255,0.08)',
+                  color: selectedRating > 0 ? 'white' : 'var(--text-muted)',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  cursor: selectedRating > 0 ? 'pointer' : 'not-allowed',
+                  transition: 'background 0.2s'
+                }}
+              >
+                ✓ Mark Complete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

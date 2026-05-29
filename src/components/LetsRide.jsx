@@ -4,6 +4,7 @@ import {
   CheckCircle, MessageSquare, Phone, Bike, Compass, X, ShieldAlert 
 } from 'lucide-react';
 import { BIKES_DATABASE } from '../utils/geo';
+import { supabase } from '../utils/supabase';
 
 export default function LetsRide({ user }) {
   const [rides, setRides] = useState([]);

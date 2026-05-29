@@ -223,52 +223,6 @@ export default function LoginScreen({ onLoginSuccess }) {
           }
         }
 
-        // Auto-seed testing accounts
-        const testAccounts = {
-          'test22@helpriders.com': { password: 'testing22', uniqueId: 'HR-22000', name: 'Rider TwentyTwo', mobile: '+91 99999 22222' },
-          'test24@helpriders.com': { password: 'testing24', uniqueId: 'HR-24000', name: 'Rider TwentyFour', mobile: '+91 99999 24242' },
-          'test26@helpriders.com': { password: 'testing26', uniqueId: 'HR-26000', name: 'Rider TwentySix', mobile: '+91 99999 26262' },
-          'test28@helpriders.com': { password: 'testing28', uniqueId: 'HR-28000', name: 'Rider TwentyEight', mobile: '+91 99999 28282' },
-          'test30@helpriders.com': { password: 'testing30', uniqueId: 'HR-30000', name: 'Rider Thirty', mobile: '+91 99999 30303' }
-        };
-
-        const testAcc = testAccounts[cleanEmail];
-        if (testAcc && password === testAcc.password) {
-          setError('');
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email: cleanEmail,
-            password: password,
-            options: {
-              data: {
-                mobile: testAcc.mobile,
-                full_name: testAcc.name
-              }
-            }
-          });
-
-          if (!signUpError && signUpData.user) {
-            const user = signUpData.user;
-            await supabase.from('profiles').insert({
-              id: user.id,
-              email: cleanEmail,
-              mobile: testAcc.mobile,
-              name: testAcc.name,
-              level: 'Rookie Rider',
-              unique_id: testAcc.uniqueId
-            });
-
-            if (signUpData.session) {
-              completeLoginFlow(user, testAcc.mobile, testAcc.name, 'Rookie Rider', testAcc.uniqueId);
-              return;
-            } else {
-              setLoading(false);
-              setFlowState('SIGN_IN');
-              setError(`Test account ${cleanEmail} registered! Verification email sent. Please confirm or disable "Confirm Email" in your Supabase Auth settings to sign in immediately.`);
-              return;
-            }
-          }
-        }
-
         setError(signInError.message);
         setLoading(false);
         return;
@@ -286,21 +240,6 @@ export default function LoginScreen({ onLoginSuccess }) {
         let name = profile?.name || data.user.user_metadata?.full_name || data.user.email.split('@')[0];
         let level = profile?.level || 'Rookie Rider';
 
-        const testAccounts = {
-          'test22@helpriders.com': { uniqueId: 'HR-22000', name: 'Rider TwentyTwo', mobile: '+91 99999 22222' },
-          'test24@helpriders.com': { uniqueId: 'HR-24000', name: 'Rider TwentyFour', mobile: '+91 99999 24242' },
-          'test26@helpriders.com': { uniqueId: 'HR-26000', name: 'Rider TwentySix', mobile: '+91 99999 26262' },
-          'test28@helpriders.com': { uniqueId: 'HR-28000', name: 'Rider TwentyEight', mobile: '+91 99999 28282' },
-          'test30@helpriders.com': { uniqueId: 'HR-30000', name: 'Rider Thirty', mobile: '+91 99999 30303' }
-        };
-
-        const testAcc = testAccounts[data.user.email.trim().toLowerCase()];
-        if (testAcc) {
-          uniqueId = testAcc.uniqueId;
-          name = testAcc.name;
-          mobile = testAcc.mobile;
-        }
-
         if (!profile) {
           if (!uniqueId) {
             uniqueId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
@@ -313,17 +252,9 @@ export default function LoginScreen({ onLoginSuccess }) {
             level: level,
             unique_id: uniqueId
           });
-        } else {
-          // If profile exists, check if we need to enforce the test account values
-          if (testAcc && (profile.unique_id !== uniqueId || profile.name !== name || profile.mobile !== mobile)) {
-            await supabase
-              .from('profiles')
-              .update({ unique_id: uniqueId, name: name, mobile: mobile })
-              .eq('id', data.user.id);
-          } else if (!uniqueId) {
-            uniqueId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
-            await supabase.from('profiles').update({ unique_id: uniqueId }).eq('id', data.user.id);
-          }
+        } else if (!uniqueId) {
+          uniqueId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+          await supabase.from('profiles').update({ unique_id: uniqueId }).eq('id', data.user.id);
         }
 
         completeLoginFlow(data.user, mobile, name, level, uniqueId);
@@ -475,30 +406,13 @@ export default function LoginScreen({ onLoginSuccess }) {
         completeLoginFlow(user, finalMobile, finalName, 'Rookie Rider', generatedId);
       } else if (signUpData.user) {
         const user = signUpData.user;
-        let generatedId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
-        let finalName = fullName;
-        let finalMobile = formattedMobile;
-
-        const testAccounts = {
-          'test22@helpriders.com': { uniqueId: 'HR-22000', name: 'Rider TwentyTwo', mobile: '+91 99999 22222' },
-          'test24@helpriders.com': { uniqueId: 'HR-24000', name: 'Rider TwentyFour', mobile: '+91 99999 24242' },
-          'test26@helpriders.com': { uniqueId: 'HR-26000', name: 'Rider TwentySix', mobile: '+91 99999 26262' },
-          'test28@helpriders.com': { uniqueId: 'HR-28000', name: 'Rider TwentyEight', mobile: '+91 99999 28282' },
-          'test30@helpriders.com': { uniqueId: 'HR-30000', name: 'Rider Thirty', mobile: '+91 99999 30303' }
-        };
-
-        const testAcc = testAccounts[user.email.trim().toLowerCase()];
-        if (testAcc) {
-          generatedId = testAcc.uniqueId;
-          finalName = testAcc.name;
-          finalMobile = testAcc.mobile;
-        }
+        const generatedId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
 
         const { error: profileError } = await supabase.from('profiles').insert({
           id: user.id,
           email: cleanEmail,
-          mobile: finalMobile,
-          name: finalName,
+          mobile: formattedMobile,
+          name: fullName,
           level: 'Rookie Rider',
           unique_id: generatedId
         });
