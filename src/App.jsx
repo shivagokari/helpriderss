@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Home, PlusCircle, History, Map, User, Users, X, Info, 
-  Download, Navigation, CheckCircle, ShieldAlert, Sparkles 
+  Download, Navigation, CheckCircle, ShieldAlert, Sparkles, Bell, Phone
 } from 'lucide-react';
 import LoginScreen from './components/LoginScreen';
 import HomeDashboard from './components/HomeDashboard';
@@ -10,6 +10,7 @@ import MyRides from './components/MyRides';
 import LetsRide from './components/LetsRide';
 import Profile from './components/Profile';
 import { generateGoogleMapsLink } from './utils/geo';
+import { supabase } from './utils/supabase';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -17,6 +18,8 @@ export default function App() {
   const [newRideOpen, setNewRideOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [showDevNotifications, setShowDevNotifications] = useState(false);
+  const [devContacts, setDevContacts] = useState([]);
   
   // Custom slide-up sheet drawers
   const [briefingSheetRide, setBriefingSheetRide] = useState(null);
@@ -202,6 +205,24 @@ export default function App() {
   const handleLogin = (userData) => {
     setUser(userData);
   };
+
+  // Load dev contacts from Supabase whenever admin opens notifications or profile tab
+  useEffect(() => {
+    if (!user) return;
+    const isAdminUser = user?.email === 'admin@helpriderss.com' || user?.level === 'System Administrator';
+    if ((activeTab === 'profile' || showDevNotifications) && isAdminUser) {
+      supabase
+        .from('dev_contacts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .then(({ data, error }) => {
+          if (!error && data) setDevContacts(data);
+        });
+    }
+  }, [activeTab, showDevNotifications, user]);
+
+  const isAdmin = user?.email === 'admin@helpriderss.com' || user?.level === 'System Administrator';
+  const unreadDevCount = devContacts.filter(c => !c.is_read).length;
 
   const handleLogout = () => {
     localStorage.removeItem('helpriders_session');
@@ -422,9 +443,14 @@ export default function App() {
 
         <button 
           onClick={() => setActiveTab('profile')} 
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', color: activeTab === 'profile' ? 'var(--primary)' : 'var(--text-secondary)' }}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', color: activeTab === 'profile' ? 'var(--primary)' : 'var(--text-secondary)', position: 'relative' }}
         >
           <User size={20} />
+          {isAdmin && unreadDevCount > 0 && (
+            <span style={{ position: 'absolute', top: '-4px', right: '-2px', background: 'var(--accent)', color: 'white', fontSize: '8px', fontWeight: 'bold', borderRadius: '50%', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #0a0a0c' }}>
+              {unreadDevCount}
+            </span>
+          )}
           <span style={{ fontSize: '9px', fontWeight: activeTab === 'profile' ? 'bold' : 'normal' }}>Profile</span>
         </button>
       </nav>
@@ -603,6 +629,68 @@ export default function App() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADMIN: Developer Reachout Notifications Drawer */}
+      {isAdmin && showDevNotifications && (
+        <div className="bottom-sheet-overlay animate-fade-in" onClick={() => setShowDevNotifications(false)}>
+          <div className="bottom-sheet" onClick={(e) => e.stopPropagation()} style={{ maxHeight: '75%' }}>
+            <div className="bottom-sheet-handle"></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 20px 0', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '16px', color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Bell size={16} color="#ffaa00" /> Developer Reachout
+                {unreadDevCount > 0 && <span style={{ background: 'var(--accent)', color: 'white', fontSize: '9px', fontWeight: 'bold', padding: '1px 6px', borderRadius: '10px' }}>{unreadDevCount} new</span>}
+              </h3>
+              <button onClick={() => setShowDevNotifications(false)} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+            <div className="bottom-sheet-content">
+              {devContacts.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+                  <Bell size={32} style={{ margin: '0 auto 12px', opacity: 0.3, display: 'block' }} />
+                  <p style={{ fontSize: '13px' }}>No developer contact requests yet.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {devContacts.map((c, idx) => (
+                    <div key={c.id} style={{ background: c.is_read ? 'rgba(255,255,255,0.02)' : 'rgba(255,170,0,0.05)', border: c.is_read ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(255,170,0,0.2)', borderRadius: '12px', padding: '12px 14px' }}>
+                      {!c.is_read && <span style={{ fontSize: '9px', background: '#ffaa00', color: 'black', padding: '1px 6px', borderRadius: '6px', fontWeight: 'bold', marginBottom: '6px', display: 'inline-block' }}>NEW</span>}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <strong style={{ fontSize: '14px', color: 'white', display: 'block' }}>{c.name}</strong>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                            <Phone size={12} color="var(--primary)" />
+                            <span style={{ fontSize: '13px', color: 'var(--primary)', fontWeight: 'bold' }}>{c.mobile}</span>
+                          </div>
+                          <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>{c.email}</span>
+                          <span style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginTop: '2px' }}>📅 {new Date(c.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            await supabase.from('dev_contacts').update({ is_read: true }).eq('id', c.id);
+                            const updated = devContacts.map((d, i) => i === idx ? { ...d, is_read: true } : d);
+                            setDevContacts(updated);
+                          }}
+                          style={{ fontSize: '10px', color: c.is_read ? 'var(--text-muted)' : 'var(--success)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', flexShrink: 0 }}
+                        >
+                          {c.is_read ? '✓ Read' : 'Mark Read'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    onClick={async () => {
+                      await supabase.from('dev_contacts').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+                      setDevContacts([]);
+                    }}
+                    style={{ width: '100%', padding: '10px', background: 'rgba(255,34,51,0.08)', color: 'var(--accent)', border: '1px solid rgba(255,34,51,0.15)', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' }}
+                  >
+                    Clear All Notifications
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

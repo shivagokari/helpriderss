@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   User, Award, Bike, PhoneCall, ShieldAlert, 
-  Settings, LogOut, ChevronRight, Check, Plus, Trash2, Heart,
-  Camera, MessageSquare, Send, X, MapPin, Image as ImageIcon, Link as LinkIcon
+  LogOut, Plus, Trash2,
+  Camera, MessageSquare, Send, X, MapPin, HeadphonesIcon
 } from 'lucide-react';
+import { supabase } from '../utils/supabase';
 
 export default function Profile({ user, onLogout, rides }) {
   // 1. Avatar Image Upload & Persistence
@@ -77,6 +78,11 @@ export default function Profile({ user, onLogout, rides }) {
   ]);
   const [newContactName, setNewContactName] = useState('');
   const [newContactPhone, setNewContactPhone] = useState('');
+
+  // Contact Developer form
+  const [devName, setDevName] = useState('');
+  const [devMobile, setDevMobile] = useState('');
+  const [devSent, setDevSent] = useState(false);
 
   // 4. Friends and Messaging States
   const [friends, setFriends] = useState(() => {
@@ -595,15 +601,89 @@ export default function Profile({ user, onLogout, rides }) {
         </form>
       </div>
 
-      {/* Account Settings / Logout */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        <button 
-          onClick={() => setLocalToast('🧹 Storage cache optimized. All settings saved.')}
-          style={{ width: '100%', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', padding: '12px', borderRadius: '12px', fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-        >
-          <span>Advanced Application Settings</span>
-          <ChevronRight size={14} />
-        </button>
+      {/* Contact Developer Section */}
+      <div className="glass-panel" style={{ padding: '16px', marginBottom: '16px', border: '1px solid rgba(255, 170, 0, 0.15)' }}>
+        <h4 style={{ fontSize: '15px', color: 'white', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <HeadphonesIcon size={16} color="#ffaa00" /> Contact Developer
+        </h4>
+        <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '14px', lineHeight: '1.5' }}>
+          Have a suggestion or issue? Drop your details and we'll reach out to you directly.
+        </p>
+
+        {devSent ? (
+          <div style={{ textAlign: 'center', padding: '16px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '12px' }}>
+            <div style={{ fontSize: '28px', marginBottom: '6px' }}>✅</div>
+            <strong style={{ color: '#22c55e', fontSize: '13px', display: 'block' }}>Message Sent!</strong>
+            <p style={{ color: 'var(--text-muted)', fontSize: '11px', margin: '4px 0 0' }}>Our team will contact you soon.</p>
+            <button
+              onClick={() => { setDevSent(false); setDevName(''); setDevMobile(''); }}
+              style={{ marginTop: '10px', fontSize: '11px', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              Send another message
+            </button>
+          </div>
+        ) : (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!devName.trim() || devMobile.replace(/\D/g, '').length < 10) {
+                setLocalToast('⚠️ Please enter a valid name and 10-digit mobile number.');
+                return;
+              }
+              setLoading && null; // no-op
+              try {
+                const { error } = await supabase.from('dev_contacts').insert({
+                  name: devName.trim(),
+                  mobile: devMobile.trim(),
+                  email: user?.email || 'Unknown',
+                  user_id: user?.uid || null,
+                  is_read: false
+                });
+                if (error) {
+                  console.error('Supabase insert error:', error.message);
+                  setLocalToast('⚠️ Could not send message. Please try again.');
+                  return;
+                }
+                setDevSent(true);
+                setLocalToast('📨 Your message has been sent to the developer!');
+              } catch (err) {
+                setLocalToast('⚠️ Network error. Please try again.');
+              }
+            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
+          >
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                placeholder="Your Full Name"
+                value={devName}
+                onChange={(e) => setDevName(e.target.value)}
+                required
+                style={{ width: '100%', padding: '10px 12px', fontSize: '13px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="tel"
+                placeholder="Working Mobile Number (10 digits)"
+                value={devMobile}
+                onChange={(e) => setDevMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                required
+                style={{ width: '100%', padding: '10px 12px', fontSize: '13px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', boxSizing: 'border-box' }}
+              />
+            </div>
+            <button
+              type="submit"
+              style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #ffaa00, #ff7700)', color: 'white', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+            >
+              <Send size={14} /> Send to Developer
+            </button>
+          </form>
+        )}
+      </div>
+
+      {/* Logout */}
+      <div style={{ marginBottom: '10px' }}>
         <button 
           onClick={onLogout}
           className="btn-secondary" 
