@@ -38,6 +38,22 @@ export default function App() {
   const [briefingSheetRide, setBriefingSheetRide] = useState(null);
   const [replaySheetRide, setReplaySheetRide] = useState(null);
   const [isReplaying, setIsReplaying] = useState(false);
+  const [showWelcomePopup, setShowWelcomePopup] = useState(false);
+
+  // Check and show welcome popup for new signups
+  useEffect(() => {
+    if (user) {
+      const firstLogin = localStorage.getItem('helpriders_first_login');
+      if (firstLogin === 'true') {
+        setShowWelcomePopup(true);
+      }
+    }
+  }, [user]);
+
+  const handleCloseWelcome = () => {
+    setShowWelcomePopup(false);
+    localStorage.removeItem('helpriders_first_login');
+  };
 
   // User-created rides list state (persisted dynamically)
   const [customRides, setCustomRides] = useState(() => {
@@ -681,6 +697,73 @@ export default function App() {
         >
           <span style={{ fontSize: '18px' }}>🏍️</span>
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Welcome Rider Popup */}
+      {showWelcomePopup && (
+        <div 
+          className="bottom-sheet-overlay animate-fade-in" 
+          style={{ 
+            zIndex: 300, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            padding: '20px',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(5, 5, 8, 0.85)'
+          }}
+          onClick={handleCloseWelcome}
+        >
+          <div 
+            className="glass-panel animate-zoom-in" 
+            style={{ 
+              width: '100%', 
+              maxWidth: '340px', 
+              padding: '32px 24px', 
+              textAlign: 'center', 
+              background: 'rgba(18, 18, 22, 0.98)', 
+              border: '1.5px solid rgba(255, 85, 0, 0.4)', 
+              boxShadow: '0 12px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 85, 0, 0.15)',
+              borderRadius: '20px'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div 
+              style={{ 
+                width: '72px', 
+                height: '72px', 
+                margin: '0 auto 20px', 
+                background: 'rgba(255, 85, 0, 0.1)', 
+                border: '1.5px solid rgba(255, 85, 0, 0.3)', 
+                borderRadius: '50%', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center'
+              }}
+            >
+              <Sparkles size={36} color="var(--primary)" style={{ filter: 'drop-shadow(0 0 8px rgba(255, 85, 0, 0.5))' }} />
+            </div>
+
+            <h2 style={{ fontSize: '22px', color: 'white', marginBottom: '10px', fontFamily: 'var(--font-display)', fontWeight: '800' }}>
+              Welcome Rider!
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px', lineHeight: '1.6', marginBottom: '24px' }}>
+              I hope you do more safe rides.
+            </p>
+
+            <button 
+              className="btn-primary" 
+              style={{ width: '100%', padding: '12px', fontSize: '14px', borderRadius: '12px', fontWeight: 'bold' }}
+              onClick={handleCloseWelcome}
+            >
+              Let's Ride 🏍️
+            </button>
+          </div>
         </div>
       )}
 

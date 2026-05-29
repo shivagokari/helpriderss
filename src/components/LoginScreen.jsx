@@ -375,8 +375,10 @@ export default function LoginScreen({ onLoginSuccess }) {
         if (profileError) {
           console.error('Failed to create profile:', profileError.message);
         }
+        localStorage.setItem('helpriders_first_login', 'true');
         completeLoginFlow(user, formattedMobile, fullName, 'Rookie Rider', generatedId);
       } else {
+        localStorage.setItem('helpriders_first_login', 'true');
         setSuccessMsg('✅ Account registered! Please check your email inbox to confirm your account, then sign in.');
         setFlowState('SIGN_IN');
         setLoading(false);

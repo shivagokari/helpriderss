@@ -147,6 +147,10 @@ export default function Profile({ user, onLogout, rides }) {
   const [searchResult, setSearchResult] = useState(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
+  
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [selectedRiderForRequest, setSelectedRiderForRequest] = useState(null);
 
   const [friends, setFriends] = useState([]);
   const [pendingIn, setPendingIn] = useState([]);
@@ -196,7 +200,8 @@ export default function Profile({ user, onLogout, rides }) {
           email: otherProfile.email,
           level: otherProfile.level || 'Rookie Rider',
           bike: otherProfile.garage && otherProfile.garage.length > 0 ? otherProfile.garage[0].name : 'Unknown Bike',
-          totalRides: 0
+          totalRides: 0,
+          note: r.note
         };
 
         if (r.status === 'accepted') {
@@ -268,7 +273,7 @@ export default function Profile({ user, onLogout, rides }) {
     }
   };
 
-  const sendFriendRequest = async (rider) => {
+  const sendFriendRequest = async (rider, noteVal = '') => {
     if (rider.relationship && rider.relationship !== 'none') {
       showToast('⚠️ Already connected, requested, or blocked.');
       return;
@@ -280,7 +285,8 @@ export default function Profile({ user, onLogout, rides }) {
         .insert({
           from_id: user.uid,
           to_id: rider.uid,
-          status: 'pending'
+          status: 'pending',
+          note: noteVal.trim().substring(0, 30)
         });
 
       if (error) throw error;
@@ -288,6 +294,9 @@ export default function Profile({ user, onLogout, rides }) {
       showToast(`📨 Friend request sent to ${rider.displayName}!`);
       fetchFriendsAndRequests();
       setSearchResult(null); setSearchId('');
+      setShowNoteModal(false);
+      setNoteText('');
+      setSelectedRiderForRequest(null);
     } catch (err) {
       showToast('❌ Failed to send request: ' + err.message);
     }
@@ -663,7 +672,11 @@ export default function Profile({ user, onLogout, rides }) {
                 </div>
                 {searchResult.relationship === 'none' && (
                   <button
-                    onClick={() => sendFriendRequest(searchResult)}
+                    onClick={() => {
+                      setSelectedRiderForRequest(searchResult);
+                      setNoteText('');
+                      setShowNoteModal(true);
+                    }}
                     style={{ padding: '8px 12px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
                   >
                     <UserPlus size={13} /> Send Request
@@ -706,7 +719,12 @@ export default function Profile({ user, onLogout, rides }) {
                 <div>
                   <strong style={{ fontSize: '13px', color: 'white', display: 'block' }}>{req.displayName}</strong>
                   <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{req.unique_id} • {req.bike}</span>
-                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>{req.totalRides || 0} rides done</span>
+                  {req.note && (
+                    <span style={{ fontSize: '11px', color: 'var(--secondary)', fontStyle: 'italic', display: 'block', marginTop: '2px' }}>
+                      💬 "{req.note}"
+                    </span>
+                  )}
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>{req.totalRides || 0} rides done</span>
                 </div>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   <button onClick={() => acceptRequest(req)} style={{ padding: '6px 10px', background: 'rgba(0,230,118,0.15)', border: '1px solid rgba(0,230,118,0.3)', borderRadius: '8px', cursor: 'pointer', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 'bold' }}>
@@ -987,6 +1005,76 @@ export default function Profile({ user, onLogout, rides }) {
                 <Send size={14} color="white" />
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Friend Request Note Modal */}
+      {showNoteModal && selectedRiderForRequest && (
+        <div className="bottom-sheet-overlay animate-fade-in" style={{ zIndex: 170, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(5, 5, 8, 0.8)' }} onClick={() => { setShowNoteModal(false); setSelectedRiderForRequest(null); setNoteText(''); }}>
+          <div className="glass-panel animate-zoom-in" style={{ width: '90%', maxWidth: '340px', background: 'rgba(18,18,24,0.98)', padding: '24px 20px', borderRadius: '20px', border: '1.5px solid var(--primary)', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '16px', color: 'white', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}>
+                📨 Add a Note
+              </h3>
+              <button 
+                onClick={() => {
+                  setShowNoteModal(false);
+                  setNoteText('');
+                  setSelectedRiderForRequest(null);
+                }} 
+                style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: '1.4' }}>
+              Include a short message for <strong>{selectedRiderForRequest.displayName}</strong> (max 30 characters).
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  placeholder="e.g. Let's plan a breakfast ride!"
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value.slice(0, 30))}
+                  maxLength={30}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    fontSize: '13px',
+                    background: '#121216',
+                    color: 'white',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: '10px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                <div style={{ textAlign: 'right', fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  {noteText.length}/30 characters
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                <button
+                  className="btn-secondary"
+                  style={{ flex: 1, padding: '10px', fontSize: '12px', borderRadius: '10px' }}
+                  onClick={() => {
+                    setShowNoteModal(false);
+                    setNoteText('');
+                    setSelectedRiderForRequest(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn-primary"
+                  style={{ flex: 1.5, padding: '10px', fontSize: '12px', borderRadius: '10px', fontWeight: 'bold' }}
+                  onClick={() => sendFriendRequest(selectedRiderForRequest, noteText)}
+                >
+                  Send Request
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

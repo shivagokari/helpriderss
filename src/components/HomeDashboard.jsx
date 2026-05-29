@@ -121,26 +121,72 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
         
         const weatherInfo = codeMap[data.current_weather.weathercode] || { text: 'Clear Sky', icon: '☀️', bg: 'linear-gradient(to bottom, #1d976c, #93f9b9)' };
         
+        const tempVal = Math.round(data.current_weather.temperature);
+        const code = data.current_weather.weathercode;
+        
+        let conditionText = weatherInfo.text;
+        let conditionIcon = weatherInfo.icon;
+        let conditionBg = weatherInfo.bg;
+        
+        const isRainy = [51, 53, 55, 61, 63, 65, 80, 81, 82, 95].includes(code);
+        const isSnowyCode = [71, 73, 75].includes(code);
+        
+        if (isRainy) {
+          conditionText = 'Rainy';
+          conditionIcon = '🌧️';
+          conditionBg = 'linear-gradient(to bottom, #2b3a42, #0f171e)';
+        } else if (tempVal > 30) {
+          conditionText = 'Summer';
+          conditionIcon = '☀️';
+          conditionBg = 'linear-gradient(to bottom, #d35400, #f39c12)';
+        } else if (tempVal < 15 || isSnowyCode) {
+          conditionText = 'Snow';
+          conditionIcon = '❄️';
+          conditionBg = 'linear-gradient(to bottom, #757f9a, #d7dde8)';
+        }
+
         setWeatherData({
-          temp: `${Math.round(data.current_weather.temperature)}°C`,
-          conditions: weatherInfo.text,
-          icon: weatherInfo.icon,
-          bg: weatherInfo.bg,
+          temp: `${tempVal}°C`,
+          conditions: conditionText,
+          icon: conditionIcon,
+          bg: conditionBg,
           windSpeed: `${data.current_weather.windspeed} km/h`,
           humidity: `${data.hourly.relativehumidity_2m[0]}%`,
-          warning: data.current_weather.temperature > 38 ? '🥵 Thermal Alert: Ambient heat exceeds 38°C.' : '🟢 Optimal Telemetry: Normal winds. Excellent riding conditions.'
+          warning: data.current_weather.temperature > 38 ? '🥵 Thermal Alert: Ambient heat exceeds 38°C.' : null
         });
       } catch (err) {
         console.warn('Live weather api error, falling back to simulator:', err);
         const sim = generateLocationWeather(lat, lon, new Date().toISOString().split('T')[0]);
+        const tempVal = parseInt(sim.temp.replace(/\D/g, '')) || 25;
+        let conditionText = sim.conditions;
+        let conditionIcon = '⛅';
+        let conditionBg = 'linear-gradient(135deg, rgba(28,28,36,0.95) 0%, rgba(18,18,22,0.85) 100%)';
+        
+        const isRainy = sim.conditions.toLowerCase().includes('rain') || sim.conditions.toLowerCase().includes('drizzle') || sim.conditions.toLowerCase().includes('storm');
+        const isSnowy = sim.conditions.toLowerCase().includes('snow');
+        
+        if (isRainy) {
+          conditionText = 'Rainy';
+          conditionIcon = '🌧️';
+          conditionBg = 'linear-gradient(to bottom, #2b3a42, #0f171e)';
+        } else if (tempVal > 30) {
+          conditionText = 'Summer';
+          conditionIcon = '☀️';
+          conditionBg = 'linear-gradient(to bottom, #d35400, #f39c12)';
+        } else if (tempVal < 15 || isSnowy) {
+          conditionText = 'Snow';
+          conditionIcon = '❄️';
+          conditionBg = 'linear-gradient(to bottom, #757f9a, #d7dde8)';
+        }
+
         setWeatherData({
           temp: sim.temp,
-          conditions: sim.conditions,
-          icon: '⛅',
-          bg: 'linear-gradient(135deg, rgba(28,28,36,0.95) 0%, rgba(18,18,22,0.85) 100%)',
+          conditions: conditionText,
+          icon: conditionIcon,
+          bg: conditionBg,
           windSpeed: sim.wind.split('|')[0].replace('Wind:', '').trim(),
           humidity: sim.wind.split('|')[1].replace('Humidity:', '').trim(),
-          warning: sim.warning
+          warning: tempVal > 38 ? '🥵 Thermal Alert: Ambient heat exceeds 38°C.' : null
         });
       } finally {
         setWeatherLoading(false);
@@ -251,7 +297,8 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
               uid: r.from_id, // sender ID
               displayName: sender ? (sender.name || sender.email.split('@')[0]) : 'Rider',
               level: sender ? (sender.level || 'Rookie Rider') : 'Rookie Rider',
-              bike: sender && sender.garage && sender.garage.length > 0 ? sender.garage[0].name : 'Unknown Bike'
+              bike: sender && sender.garage && sender.garage.length > 0 ? sender.garage[0].name : 'Unknown Bike',
+              note: r.note
             };
           });
           setPendingFriendRequests(mapped);
@@ -532,6 +579,20 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
         </div>
       </div>
 
+      {/* Ride Quick Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+        <div className="glass-panel" style={{ padding: '12px 16px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Total Distance</span>
+          <div style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'var(--font-display)', margin: '4px 0', color: 'var(--primary)' }}>{totalKMs.toLocaleString('en-IN')} KM</div>
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Recorded on your log</span>
+        </div>
+        <div className="glass-panel" style={{ padding: '12px 16px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Completed Trips</span>
+          <div style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'var(--font-display)', margin: '4px 0', color: 'var(--secondary)' }}>{totalTrips} {totalTrips === 1 ? 'Trip' : 'Trips'}</div>
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Level: {levelName}</span>
+        </div>
+      </div>
+
       {/* Weather Overview (Google Weather Styled) */}
       <div 
         className="glass-panel" 
@@ -598,20 +659,6 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
             )}
           </>
         )}
-      </div>
-
-      {/* Ride Quick Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
-        <div className="glass-panel" style={{ padding: '12px 16px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Total Distance</span>
-          <div style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'var(--font-display)', margin: '4px 0', color: 'var(--primary)' }}>{totalKMs.toLocaleString('en-IN')} KM</div>
-          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Recorded on your log</span>
-        </div>
-        <div className="glass-panel" style={{ padding: '12px 16px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Completed Trips</span>
-          <div style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'var(--font-display)', margin: '4px 0', color: 'var(--secondary)' }}>{totalTrips} {totalTrips === 1 ? 'Trip' : 'Trips'}</div>
-          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Level: {levelName}</span>
-        </div>
       </div>
 
       {/* ── REMINDERS WIDGET ──────────────────────────────────────────────────── */}
@@ -973,6 +1020,11 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
                           <div style={{ color: 'var(--text-secondary)' }}>
                             Garage: {req.bike}
                           </div>
+                          {req.note && (
+                            <div style={{ fontStyle: 'italic', color: 'var(--secondary)', marginTop: '4px', background: 'rgba(255, 170, 0, 0.05)', padding: '6px 8px', borderRadius: '6px' }}>
+                              💬 "{req.note}"
+                            </div>
+                          )}
                           <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
                             <button 
                               className="btn-secondary" 
