@@ -3,7 +3,7 @@ import {
   CloudSun, Droplet, Gauge, MapPin, Calendar, Fuel, 
   Sparkles, Navigation, AlertTriangle, 
   Wrench, Share2, Bell, AlertCircle, CheckSquare, Square,
-  Plus, Trash2, Clock, X
+  Plus, Trash2, Clock, X, Bike
 } from 'lucide-react';
 import { 
   searchLocationInIndia, 
