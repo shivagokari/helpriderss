@@ -100,10 +100,11 @@ function ReplayMap({ ride }) {
 }
 
 const isRideTimePassed = (ride) => {
-  if (!ride.formData || !ride.formData.rideDates) return false;
+  // Try wizard-saved ride date first (formData.rideDates), then community ride date (ride.date)
+  const dateStr = (ride.formData && ride.formData.rideDates) || ride.date;
+  if (!dateStr) return false;
   
-  const dateStr = ride.formData.rideDates;
-  const timingStr = ride.formData.rideTiming || '';
+  const timingStr = (ride.formData && ride.formData.rideTiming) || '';
   
   let endHour = 23;
   let endMinute = 59;
@@ -123,6 +124,7 @@ const isRideTimePassed = (ride) => {
   }
   
   const [year, month, day] = dateStr.split('-').map(Number);
+  if (!year || !month || !day) return false;
   const rideEndDateTime = new Date(year, month - 1, day, endHour, endMinute);
   const now = new Date();
   

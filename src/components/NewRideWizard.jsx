@@ -883,6 +883,18 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
       routeCoords.push(...returnCoords);
     }
 
+    // Extract clean state names from location strings
+    const extractStateName = (locStr) => {
+      if (!locStr) return 'Your State';
+      const parts = locStr.split(',');
+      // Try to get the state (usually second-to-last before India)
+      if (parts.length >= 3) return parts[parts.length - 2].trim();
+      if (parts.length === 2) return parts[1].trim();
+      return parts[0].trim();
+    };
+    const startStateName = extractStateName(formData.startLocation);
+    const destStateName = extractStateName(formData.destination);
+
     const newItinerary = {
       id: editingRide ? editingRide.id : 'ride-' + Date.now(),
       title: `Ride to ${destCityOnly}`,
@@ -895,6 +907,10 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
       foodEstimate: foodCost,
       totalExpenses: totalExpenses,
       fuelPricePerLiter: Number(avgFuelPrice.toFixed(2)),
+      startFuelPrice: Number(startFuelPrice.toFixed(2)),
+      destFuelPrice: Number(destFuelPrice.toFixed(2)),
+      startStateName,
+      destStateName,
       mapsLink: gMapsLink,
       weatherForecast: `${weatherReport.conditions}. Temperature: ${weatherReport.temp}. ${weatherReport.wind}.`,
       weatherWarning: weatherReport.warning,
@@ -1113,7 +1129,7 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
               {/* Expense Calculations */}
               <div className="glass-panel" style={{ padding: '16px' }}>
                 <h4 style={{ fontSize: '14px', color: 'white', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <DollarSign size={14} color="var(--secondary)" /> Fuel & Travel Expenses (Telangana Tariff)
+                  <DollarSign size={14} color="var(--secondary)" /> Fuel & Travel Expenses
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1124,8 +1140,23 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                     <span style={{ color: 'var(--text-secondary)' }}>Petrol Needed ({generatedItinerary.formData.fuelType}):</span>
                     <strong style={{ color: 'white' }}>{generatedItinerary.fuelConsumption} L</strong>
                   </div>
+                  {/* Show both state prices and average */}
+                  <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '8px 10px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{generatedItinerary.startStateName} Petrol:</span>
+                      <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>₹{generatedItinerary.startFuelPrice}/L</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{generatedItinerary.destStateName} Petrol:</span>
+                      <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>₹{generatedItinerary.destFuelPrice}/L</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '4px', marginTop: '2px' }}>
+                      <span style={{ color: 'var(--primary)', fontSize: '11px', fontWeight: '600' }}>Route Average:</span>
+                      <span style={{ color: 'var(--primary)', fontSize: '11px', fontWeight: '700' }}>₹{generatedItinerary.fuelPricePerLiter}/L</span>
+                    </div>
+                  </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Fuel Cost (Telangana @ ₹{generatedItinerary.fuelPricePerLiter}/L):</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Fuel Cost (avg ₹{generatedItinerary.fuelPricePerLiter}/L × {generatedItinerary.fuelConsumption}L):</span>
                     <strong style={{ color: 'var(--success)' }}>₹ {generatedItinerary.fuelCost}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1173,11 +1204,38 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                 <h4 style={{ fontSize: '14px', color: 'white', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Compass size={14} color="var(--primary)" /> Suggested Scenic Views
                 </h4>
-                <ul style={{ paddingLeft: '16px', margin: '0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {generatedItinerary.scenicSpots.map((spot, idx) => (
-                    <li key={idx} style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{spot}</li>
-                  ))}
-                </ul>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {generatedItinerary.scenicSpots.map((spot, idx) => {
+                    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(spot + ', ' + generatedItinerary.formData.destination)}`;
+                    return (
+                      <a
+                        key={idx}
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '12px',
+                          color: 'var(--primary)',
+                          textDecoration: 'none',
+                          padding: '6px 8px',
+                          borderRadius: '8px',
+                          background: 'rgba(255,85,0,0.06)',
+                          border: '1px solid rgba(255,85,0,0.12)',
+                          transition: 'background 0.15s'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,85,0,0.14)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,85,0,0.06)'}
+                      >
+                        <span style={{ fontSize: '14px' }}>🏔️</span>
+                        <span style={{ flex: 1 }}>{spot}</span>
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>📍 View on Maps →</span>
+                      </a>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Famous Regional Food & Delicacies */}
@@ -1198,11 +1256,32 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                     <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '8px' }}>
                       <strong style={{ color: 'white', display: 'block', marginBottom: '6px' }}>Suggested Pitstops & Dhabas:</strong>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {generatedItinerary.foodRecommendations.stops.map((stop, idx) => (
-                          <div key={idx} style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                            <span style={{ color: 'white', fontWeight: 'bold' }}>📍 {stop.name}</span>: {stop.description}
-                          </div>
-                        ))}
+                        {generatedItinerary.foodRecommendations.stops.map((stop, idx) => {
+                          const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stop.name + ', ' + generatedItinerary.formData.destination)}`;
+                          return (
+                            <a
+                              key={idx}
+                              href={mapsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'block',
+                                padding: '8px 10px',
+                                borderRadius: '8px',
+                                background: 'rgba(255,170,0,0.06)',
+                                border: '1px solid rgba(255,170,0,0.12)',
+                                textDecoration: 'none',
+                                transition: 'background 0.15s'
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,170,0,0.14)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,170,0,0.06)'}
+                            >
+                              <span style={{ color: 'var(--secondary)', fontWeight: 'bold', display: 'block' }}>🍽️ {stop.name}</span>
+                              <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{stop.description}</span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '2px', display: 'block' }}>📍 Tap to get directions →</span>
+                            </a>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -1214,19 +1293,55 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                 <h4 style={{ fontSize: '14px', color: 'var(--accent)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Shield size={14} /> Emergency Points of Interest
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                  <div>
-                    <strong style={{ color: 'white', display: 'block' }}>Hospital Support:</strong>
-                    <span>{generatedItinerary.emergencyLocations.hospital}</span>
-                  </div>
-                  <div>
-                    <strong style={{ color: 'white', display: 'block' }}>Highway Repairs:</strong>
-                    <span>{generatedItinerary.emergencyLocations.mechanic}</span>
-                  </div>
-                  <div>
-                    <strong style={{ color: 'white', display: 'block' }}>Fuel Stations:</strong>
-                    <span>{generatedItinerary.emergencyLocations.fuelStation}</span>
-                  </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '11px' }}>
+                  {/* Hospital */}
+                  {[{
+                    label: '🏥 Hospital Support',
+                    text: generatedItinerary.emergencyLocations.hospital,
+                    query: generatedItinerary.emergencyLocations.hospital + ', ' + generatedItinerary.formData.destination,
+                    color: 'rgba(255,34,51,0.08)',
+                    borderColor: 'rgba(255,34,51,0.15)',
+                    textColor: '#ff6677'
+                  }, {
+                    label: '🔧 Highway Repairs',
+                    text: generatedItinerary.emergencyLocations.mechanic,
+                    query: 'Motorcycle repair center ' + generatedItinerary.formData.destination,
+                    color: 'rgba(255,170,0,0.08)',
+                    borderColor: 'rgba(255,170,0,0.15)',
+                    textColor: 'var(--secondary)'
+                  }, {
+                    label: '⛽ Fuel Station',
+                    text: generatedItinerary.emergencyLocations.fuelStation,
+                    query: 'Fuel pump petrol station ' + generatedItinerary.formData.destination,
+                    color: 'rgba(0,180,255,0.08)',
+                    borderColor: 'rgba(0,180,255,0.15)',
+                    textColor: 'var(--info)'
+                  }].map((item, idx) => {
+                    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(item.query)}&travelmode=driving`;
+                    return (
+                      <a
+                        key={idx}
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'block',
+                          padding: '10px 12px',
+                          borderRadius: '10px',
+                          background: item.color,
+                          border: `1px solid ${item.borderColor}`,
+                          textDecoration: 'none',
+                          transition: 'filter 0.15s'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.25)'}
+                        onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}
+                      >
+                        <strong style={{ color: item.textColor, display: 'block', marginBottom: '3px' }}>{item.label}</strong>
+                        <span style={{ color: 'var(--text-secondary)' }}>{item.text}</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '10px', display: 'block', marginTop: '3px' }}>📍 Get directions →</span>
+                      </a>
+                    );
+                  })}
                 </div>
               </div>
 
