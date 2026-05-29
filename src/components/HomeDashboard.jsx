@@ -31,11 +31,21 @@ const ESSENTIALS = [
   { id: 'phone', label: '📱 Phone + Charger', desc: 'Power bank charged' },
 ];
 
-export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWizard }) {
+export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWizard, rides }) {
   // Fuel Estimator States
   const [fuelStartLocation, setFuelStartLocation] = useState('');
   const [fuelDestination, setFuelDestination] = useState('');
   const [selectedBike, setSelectedBike] = useState('Royal Enfield Classic 350');
+  const [userGarage, setUserGarage] = useState([]);
+
+  // Calculate statistics from real user rides
+  const totalKMs = (rides || []).reduce((sum, r) => sum + (r.distance || 0), 0);
+  const totalTrips = (rides || []).filter(r => r.status === 'Completed').length;
+
+  let levelName = 'Rookie Rider';
+  if (totalKMs >= 2500) { levelName = 'Iron Butt Legend'; }
+  else if (totalKMs >= 1000) { levelName = 'Asphalt Veteran'; }
+  else if (totalKMs >= 300) { levelName = 'Highway Explorer'; }
   const [fuelDistance, setFuelDistance] = useState(350);
   const [bikeMileage, setBikeMileage] = useState(35);
   const [fuelPrice, setFuelPrice] = useState(115.73);
@@ -167,6 +177,29 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
       fetchWeather(17.3850, 78.4867, 'Hyderabad');
     }
   }, []);
+
+  useEffect(() => {
+    if (!user || !user.uid) return;
+    const fetchUserGarage = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('garage')
+          .eq('id', user.uid)
+          .maybeSingle();
+
+        if (!error && data && data.garage) {
+          setUserGarage(data.garage);
+          if (data.garage.length > 0) {
+            setSelectedBike(data.garage[0].name);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load user garage details:', err.message);
+      }
+    };
+    fetchUserGarage();
+  }, [user]);
 
   const fetchAllNotifications = async () => {
     if (!user || !user.uid) return;
@@ -571,13 +604,13 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
         <div className="glass-panel" style={{ padding: '12px 16px' }}>
           <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Total Distance</span>
-          <div style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'var(--font-display)', margin: '4px 0', color: 'var(--primary)' }}>4,820 KM</div>
-          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>+240 KM this week</span>
+          <div style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'var(--font-display)', margin: '4px 0', color: 'var(--primary)' }}>{totalKMs.toLocaleString('en-IN')} KM</div>
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Recorded on your log</span>
         </div>
         <div className="glass-panel" style={{ padding: '12px 16px' }}>
           <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Completed Trips</span>
-          <div style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'var(--font-display)', margin: '4px 0', color: 'var(--secondary)' }}>28 Trips</div>
-          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Level: Apex Biker</span>
+          <div style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'var(--font-display)', margin: '4px 0', color: 'var(--secondary)' }}>{totalTrips} {totalTrips === 1 ? 'Trip' : 'Trips'}</div>
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Level: {levelName}</span>
         </div>
       </div>
 
@@ -759,9 +792,15 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
           <div>
             <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Select Biker Machine</label>
             <select value={selectedBike} onChange={(e) => handleBikeSelect(e.target.value)} style={{ width: '100%', padding: '8px 10px', fontSize: '12px', background: '#1c1c24' }}>
-              {BIKES_DATABASE.map((b, idx) => (
-                <option key={idx} value={b.name}>{b.name} ({b.type})</option>
-              ))}
+              {userGarage.length > 0 ? (
+                userGarage.map((b, idx) => (
+                  <option key={idx} value={b.name}>{b.name}</option>
+                ))
+              ) : (
+                BIKES_DATABASE.map((b, idx) => (
+                  <option key={idx} value={b.name}>{b.name} ({b.type})</option>
+                ))
+              )}
             </select>
           </div>
 
@@ -811,41 +850,48 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
         <h4 style={{ fontSize: '16px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Wrench size={16} color="var(--secondary)" /> Bike Health Status
         </h4>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'rgba(0,230,118,0.05)', borderRadius: '10px', border: '1px solid rgba(0,230,118,0.1)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Gauge size={14} color="var(--success)" />
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '12px', fontWeight: '600' }}>Tire Pressure</span>
-                <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Front 32 | Rear 36 PSI</span>
+        {userGarage.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px 10px', color: 'var(--text-muted)', fontSize: '12px' }}>
+            <Bike size={24} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.3 }} />
+            No active bike in your garage. Add a bike in your Profile tab to track health stats.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'rgba(0,230,118,0.05)', borderRadius: '10px', border: '1px solid rgba(0,230,118,0.1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Gauge size={14} color="var(--success)" />
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '600' }}>Tire Pressure</span>
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Front 32 | Rear 36 PSI</span>
+                </div>
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--success)', fontWeight: '600' }}>Normal</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'rgba(255,170,0,0.05)', borderRadius: '10px', border: '1px solid rgba(255,170,0,0.1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Droplet size={14} color="var(--secondary)" />
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '600' }}>Engine Oil Quality</span>
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Last service 4,200 km ago</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                <span style={{ fontSize: '11px', color: 'var(--secondary)', fontWeight: '600' }}>Service Due</span>
+                <span style={{ fontSize: '8px', color: 'var(--text-muted)' }}>in 800 km</span>
               </div>
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--success)', fontWeight: '600' }}>Normal</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'rgba(255,170,0,0.05)', borderRadius: '10px', border: '1px solid rgba(255,170,0,0.1)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Droplet size={14} color="var(--secondary)" />
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '12px', fontWeight: '600' }}>Engine Oil Quality</span>
-                <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Last service 4,200 km ago</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'rgba(255,34,51,0.05)', borderRadius: '10px', border: '1px solid rgba(255,34,51,0.1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Wrench size={14} color="var(--accent)" />
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '600' }}>Brake Pad Thickness</span>
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Rear brake pads worn</span>
+                </div>
               </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-              <span style={{ fontSize: '11px', color: 'var(--secondary)', fontWeight: '600' }}>Service Due</span>
-              <span style={{ fontSize: '8px', color: 'var(--text-muted)' }}>in 800 km</span>
+              <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: '600' }}>Replace Soon</span>
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'rgba(255,34,51,0.05)', borderRadius: '10px', border: '1px solid rgba(255,34,51,0.1)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Wrench size={14} color="var(--accent)" />
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '12px', fontWeight: '600' }}>Brake Pad Thickness</span>
-                <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Rear brake pads worn</span>
-              </div>
-            </div>
-            <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: '600' }}>Replace Soon</span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Crew notifications drawer */}

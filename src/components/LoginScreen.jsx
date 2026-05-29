@@ -290,8 +290,15 @@ export default function LoginScreen({ onLoginSuccess }) {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
+    // Repeated digits check (reject numbers like 9999999999)
+    const isRepeatedNumber = new Set(normalizedMobile).size === 1;
+    if (isRepeatedNumber) {
+      setError('Please enter a valid working mobile number (repeated/fancy numbers are not allowed)');
+      return;
+    }
+
+    if (password.length !== 6) {
+      setError('Password must be exactly 6 characters long');
       return;
     }
 
@@ -475,8 +482,8 @@ export default function LoginScreen({ onLoginSuccess }) {
   // ─── Create Password (after sign-up OTP verify) ───────
   const handleCreatePassword = async (e) => {
     e.preventDefault();
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters long');
+    if (newPassword.length !== 6) {
+      setError('Password must be exactly 6 characters long');
       return;
     }
     setError('');
@@ -564,8 +571,8 @@ export default function LoginScreen({ onLoginSuccess }) {
   // ─── Reset Password (after forgot-password OTP verify) ─
   const handleResetPassword = async (e) => {
     e.preventDefault();
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters long');
+    if (newPassword.length !== 6) {
+      setError('Password must be exactly 6 characters long');
       return;
     }
     setError('');
@@ -843,7 +850,7 @@ export default function LoginScreen({ onLoginSuccess }) {
               <Lock size={16} style={iconAbsStyle} />
               <input
                 type={showPassword ? "text" : "password"}
-                placeholder="Choose Password (min 6 chars)"
+                placeholder="Choose Password (exactly 6 chars)"
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError(''); }}
                 onFocus={handleFocus}
@@ -994,7 +1001,7 @@ export default function LoginScreen({ onLoginSuccess }) {
               <Lock size={16} style={iconAbsStyle} />
               <input
                 type={showPassword ? "text" : "password"}
-                placeholder="Create Account Password (min 6 chars)"
+                placeholder="Create Account Password (exactly 6 chars)"
                 value={newPassword}
                 onChange={(e) => { setNewPassword(e.target.value); setError(''); }}
                 onFocus={handleFocus}
@@ -1042,7 +1049,7 @@ export default function LoginScreen({ onLoginSuccess }) {
               <Lock size={16} style={iconAbsStyle} />
               <input
                 type={showPassword ? "text" : "password"}
-                placeholder="New Password (min 6 chars)"
+                placeholder="New Password (exactly 6 chars)"
                 value={newPassword}
                 onChange={(e) => { setNewPassword(e.target.value); setError(''); }}
                 onFocus={handleFocus}

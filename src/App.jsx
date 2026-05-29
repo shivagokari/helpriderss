@@ -49,126 +49,7 @@ export default function App() {
         console.warn("Failed to parse saved rides", e);
       }
     }
-    // Seed default rides with formData and coordinate info
-    return [
-      {
-        id: 'ride-101',
-        title: 'Trans-Himalayan Pass',
-        status: 'Upcoming',
-        startLocation: 'Manali',
-        destination: 'Leh',
-        dates: 'June 12 - June 18, 2026',
-        distance: 428,
-        fuelConsumption: 12.2,
-        fuelCost: 1338,
-        hotelEstimate: 12500,
-        foodEstimate: 6000,
-        totalExpenses: 19838,
-        duration: '18h 30m',
-        weatherForecast: 'Cold & Breezy, 12°C',
-        rating: 4.8,
-        isFavorite: true,
-        photos: ['🏍️ Mountains', '⛺ Jispa Camp', '🏔️ Passes'],
-        mapsLink: generateGoogleMapsLink('Manali', 'Leh'),
-        startCoords: { lat: 32.2396, lon: 77.1887 },
-        destCoords: { lat: 34.1526, lon: 77.5771 },
-        waypoints: [],
-        formData: {
-          startLocation: 'Manali, Himachal Pradesh',
-          destination: 'Leh, Ladakh',
-          stops: '',
-          tripType: 'One-Way',
-          rideDates: '2026-06-12',
-          rideDurationDays: '7 Days',
-          rideTiming: 'Morning (6 AM - 12 PM)',
-          numRiders: 'Solo',
-          pillion: 'No Pillion (Solo Rider)',
-          bikeModel: 'Royal Enfield Himalayan',
-          ridingStyle: 'Touring (Covering distance)',
-          budget: 'Moderate',
-          hotelPreference: 'Standard Hotel',
-          fuelType: 'Normal Petrol'
-        }
-      },
-      {
-        id: 'ride-102',
-        title: 'Goa Coastal Getaway',
-        status: 'Completed',
-        startLocation: 'Mumbai',
-        destination: 'Goa',
-        dates: 'April 02 - April 05, 2026',
-        distance: 590,
-        fuelConsumption: 16.8,
-        fuelCost: 1842,
-        hotelEstimate: 8000,
-        foodEstimate: 4000,
-        totalExpenses: 13842,
-        duration: '11h 15m',
-        weatherForecast: 'Sunny & Humid, 34°C',
-        rating: 5.0,
-        isFavorite: true,
-        photos: ['🌅 Beachside', '🌴 Palm Trails', '🦐 Biker Shack'],
-        mapsLink: generateGoogleMapsLink('Mumbai', 'Goa'),
-        startCoords: { lat: 19.0760, lon: 72.8777 },
-        destCoords: { lat: 15.4909, lon: 73.8278 },
-        waypoints: [],
-        formData: {
-          startLocation: 'Mumbai, Maharashtra',
-          destination: 'Panaji, Goa',
-          stops: '',
-          tripType: 'One-Way',
-          rideDates: '2026-04-02',
-          rideDurationDays: '3 Days',
-          rideTiming: 'Morning (6 AM - 12 PM)',
-          numRiders: 'Solo',
-          pillion: 'No Pillion (Solo Rider)',
-          bikeModel: 'Royal Enfield Classic 350',
-          ridingStyle: 'Cruising (Scenic/Relaxed)',
-          budget: 'Moderate',
-          hotelPreference: 'Standard Hotel',
-          fuelType: 'Normal Petrol'
-        }
-      },
-      {
-        id: 'ride-103',
-        title: 'Western Ghats Hairpins',
-        status: 'Completed',
-        startLocation: 'Pune',
-        destination: 'Mahabaleshwar',
-        dates: 'Feb 14, 2026',
-        distance: 120,
-        fuelConsumption: 3.4,
-        fuelCost: 373,
-        hotelEstimate: 0,
-        foodEstimate: 1200,
-        totalExpenses: 1573,
-        duration: '3h 10m',
-        weatherForecast: 'Foggy Morning, 18°C',
-        rating: 4.5,
-        isFavorite: false,
-        photos: ['🌫️ Foggy Ghats', '🍓 Fresh Farms'],
-        mapsLink: generateGoogleMapsLink('Pune', 'Mahabaleshwar'),
-        startCoords: { lat: 18.5204, lon: 73.8567 },
-        destCoords: { lat: 17.9220, lon: 73.6644 },
-        waypoints: [],
-        formData: {
-          startLocation: 'Pune, Maharashtra',
-          destination: 'Mahabaleshwar, Maharashtra',
-          stops: '',
-          tripType: 'One-Way',
-          rideDates: '2026-02-14',
-          rideDurationDays: '1 Day',
-          rideTiming: 'Morning (6 AM - 12 PM)',
-          numRiders: 'Solo',
-          pillion: 'No Pillion (Solo Rider)',
-          bikeModel: 'KTM Duke 390',
-          ridingStyle: 'Cruising (Scenic/Relaxed)',
-          budget: 'Moderate',
-          hotelPreference: 'Standard Hotel',
-          fuelType: 'Normal Petrol'
-        }
-      }
-    ];
+    return [];
   });
 
   const [editingRide, setEditingRide] = useState(null);
@@ -414,6 +295,7 @@ export default function App() {
               onTabChange={setActiveTab} 
               onOpenDetails={setBriefingSheetRide} 
               openWizard={() => setNewRideOpen(true)}
+              rides={customRides}
             />
           )}
           

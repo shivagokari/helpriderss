@@ -661,12 +661,37 @@ export default function Profile({ user, onLogout, rides }) {
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>ID: {searchResult.unique_id} • {searchResult.level}</span>
                   <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block' }}>{searchResult.totalRides} rides</span>
                 </div>
-                <button
-                  onClick={() => sendFriendRequest(searchResult)}
-                  style={{ padding: '8px 12px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                >
-                  <UserPlus size={13} /> Add
-                </button>
+                {searchResult.relationship === 'none' && (
+                  <button
+                    onClick={() => sendFriendRequest(searchResult)}
+                    style={{ padding: '8px 12px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <UserPlus size={13} /> Send Request
+                  </button>
+                )}
+                {searchResult.relationship === 'pending_out' && (
+                  <span style={{ fontSize: '12.5px', color: '#ffaa00', fontWeight: '600', padding: '6px 12px', background: 'rgba(255,170,0,0.1)', borderRadius: '8px' }}>
+                    ⏳ Requested
+                  </span>
+                )}
+                {searchResult.relationship === 'pending_in' && (
+                  <button
+                    onClick={() => acceptRequest(searchResult)}
+                    style={{ padding: '8px 12px', background: 'rgba(0,230,118,0.15)', border: '1px solid rgba(0,230,118,0.3)', color: 'var(--success)', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <Check size={13} /> Accept
+                  </button>
+                )}
+                {searchResult.relationship === 'friend' && (
+                  <span style={{ fontSize: '12.5px', color: '#00e676', fontWeight: '600', padding: '6px 12px', background: 'rgba(0,230,118,0.1)', borderRadius: '8px' }}>
+                    ✓ Connected
+                  </span>
+                )}
+                {searchResult.relationship === 'blocked' && (
+                  <span style={{ fontSize: '12.5px', color: 'var(--accent)', fontWeight: '600', padding: '6px 12px', background: 'rgba(255,34,51,0.1)', borderRadius: '8px' }}>
+                    🚫 Blocked
+                  </span>
+                )}
               </div>
             </div>
           )}

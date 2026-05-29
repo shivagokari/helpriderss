@@ -90,68 +90,11 @@ export default function LetsRide({ user }) {
   // Load rides & notifications from localStorage or seed defaults
   useEffect(() => {
     const savedRides = localStorage.getItem('helpriders_social_rides');
-    const defaultRides = [
-      {
-        id: 'social-1',
-        creator: 'Rahul Sharma',
-        creatorPhone: '+91 98765 43210',
-        creatorEmail: 'rahul@helpriderss.com',
-        title: 'Sunday Morning Cruise to Yadagirigutta',
-        route: 'Hyderabad ➔ Yadagirigutta Temple',
-        date: '2026-05-31',
-        time: '05:30 AM',
-        distance: '65 KM',
-        bikeType: 'Cruisers & Commuters',
-        description: 'Planning a relaxed breakfast ride. Riding at a comfortable pace of 70-80 km/h. Meetup at Uppal Metro Station.',
-        joinedCount: 4,
-        maxSlots: 120,
-        joinRequests: [
-          { id: 'req-1', name: 'Karthik Kumar', bikeModel: 'Bajaj Pulsar N160', phone: '+91 91234 56789', age: '24', crewType: 'Solo', status: 'Pending' },
-          { id: 'req-2', name: 'Srinivas Rao', bikeModel: 'Honda Unicorn', phone: '+91 82345 67890', age: '32', crewType: 'Duo', status: 'Pending' }
-        ]
-      },
-      {
-        id: 'social-2',
-        creator: 'Vikram Singh',
-        creatorPhone: '+91 87654 32109',
-        creatorEmail: 'vikram@helpriderss.com',
-        title: 'Monsoon Ghat Ride to Srisailam Dam',
-        route: 'Secunderabad ➔ Nallamala Forest ➔ Srisailam',
-        date: '2026-06-03',
-        time: '04:30 AM',
-        distance: '315 KM',
-        bikeType: '150cc+ Adventure/Sports',
-        description: 'Scenic highway ride through Nallamala forest reserve. Please wear full safety gears. Rain coats are mandatory.',
-        joinedCount: 8,
-        maxSlots: 120,
-        joinRequests: []
-      },
-      {
-        id: 'social-3',
-        creator: 'You (Host)',
-        creatorPhone: '+91 99009 90099',
-        creatorEmail: 'admin@helpriderss.com', // Let's seed as admin so admin is host
-        title: 'Bikers Breakfast Run to Vikarabad',
-        route: 'Gachibowli ➔ Vikarabad (Ananthagiri Hills)',
-        date: '2026-06-05',
-        time: '06:00 AM',
-        distance: '75 KM',
-        bikeType: 'All Bikes Welcome',
-        description: 'Sunday morning breakfast run to Ananthagiri Hills. Short 75 KM highway run. Join up for a quick tea!',
-        joinedCount: 2,
-        maxSlots: 120,
-        joinRequests: [
-          { id: 'req-3', name: 'Kiran Goud', bikeModel: 'Pulsar N250', phone: '+91 70123 45678', age: '25', crewType: 'Solo', status: 'Pending' },
-          { id: 'req-4', name: 'Manish Reddy', bikeModel: 'KTM Duke 390', phone: '+91 90123 45678', age: '28', crewType: 'Solo', status: 'Pending' }
-        ]
-      }
-    ];
-
     if (savedRides) {
       setRides(JSON.parse(savedRides));
     } else {
-      setRides(defaultRides);
-      localStorage.setItem('helpriders_social_rides', JSON.stringify(defaultRides));
+      setRides([]);
+      localStorage.setItem('helpriders_social_rides', JSON.stringify([]));
     }
   }, []);
 
@@ -323,6 +266,13 @@ export default function LetsRide({ user }) {
     const indianPhoneRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
     if (!indianPhoneRegex.test(cleanPhone)) {
       showToast('⚠️ Please enter a valid 10-digit Indian phone number.');
+      return;
+    }
+
+    // Repeated digits check (reject numbers like 9999999999)
+    const rawNumber = cleanPhone.startsWith('+91') ? cleanPhone.substring(3) : cleanPhone.startsWith('91') && cleanPhone.length === 12 ? cleanPhone.substring(2) : cleanPhone.startsWith('0') ? cleanPhone.substring(1) : cleanPhone;
+    if (new Set(rawNumber).size === 1) {
+      showToast('⚠️ Repeated/fancy phone numbers are not allowed.');
       return;
     }
 
