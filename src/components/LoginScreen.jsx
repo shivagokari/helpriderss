@@ -259,66 +259,123 @@ export default function LoginScreen({ onLoginSuccess }) {
     }
   };
 
-  // ─── SIGN UP → Send Real Supabase Email OTP ────────────
+  // ─── SIGN UP ───────────────────────────────────────────
   const handleSignUp = async (e) => {
     e.preventDefault();
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !mobileNumber || !fullName) {
-      setError('Please enter your Name, Email, and Mobile Number');
+    if (!cleanEmail || !mobileNumber || !fullName || !password) {
+      setError('Please fill in all fields (Name, Email, Mobile, and Password)');
       return;
     }
-    if (mobileNumber.replace(/\D/g, '').length < 8) {
-      setError('Please enter a valid mobile number');
-      return;
-    }
-    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
       setError('Please enter a valid email address');
       return;
     }
+
+    // Indian Mobile Number Validation
+    const cleanMobile = mobileNumber.replace(/\D/g, '');
+    let normalizedMobile = cleanMobile;
+    if (cleanMobile.length === 12 && cleanMobile.startsWith('91')) {
+      normalizedMobile = cleanMobile.substring(2);
+    } else if (cleanMobile.length === 11 && cleanMobile.startsWith('0')) {
+      normalizedMobile = cleanMobile.substring(1);
+    }
+
+    const indianMobileRegex = /^[6-9]\d{9}$/;
+    if (!indianMobileRegex.test(normalizedMobile)) {
+      setError('Please enter a valid 10-digit Indian mobile number (starts with 6, 7, 8, or 9)');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+
     setError('');
     setSuccessMsg('');
     setLoading(true);
 
     try {
-      // Check if user already exists in profiles
-      const { data: existingProfile } = await supabase
+      // Check if email already exists in profiles
+      const { data: existingEmail, error: emailCheckError } = await supabase
         .from('profiles')
         .select('email')
         .eq('email', cleanEmail)
         .maybeSingle();
 
-      if (existingProfile) {
-        setError('This email is already registered. Please Sign In.');
+      if (emailCheckError) {
+        console.error('Email check error:', emailCheckError.message);
+      }
+
+      if (existingEmail) {
+        setError('An account with this email address already exists. Please Sign In.');
         setLoading(false);
         return;
       }
 
-      // Send real Supabase Email OTP for signup verification
-      const { error: otpError } = await supabase.auth.signInWithOtp({
+      // Check if mobile number already exists in profiles (case insensitive check for last 10 digits)
+      const { data: existingMobile, error: mobileCheckError } = await supabase
+        .from('profiles')
+        .select('mobile')
+        .ilike('mobile', `%${normalizedMobile}`)
+        .maybeSingle();
+
+      if (mobileCheckError) {
+        console.error('Mobile check error:', mobileCheckError.message);
+      }
+
+      if (existingMobile) {
+        setError('An account with this mobile number already exists. Please use a different number.');
+        setLoading(false);
+        return;
+      }
+
+      const formattedMobile = `+91 ${normalizedMobile}`;
+
+      // Sign up directly with credentials
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: cleanEmail,
+        password: password,
         options: {
-          shouldCreateUser: true,
           data: {
-            mobile: mobileNumber,
+            mobile: formattedMobile,
             full_name: fullName
           }
         }
       });
 
-      if (otpError) {
-        setError(otpError.message);
+      if (signUpError) {
+        setError(signUpError.message);
         setLoading(false);
         return;
       }
 
-      setLoading(false);
-      setSuccessMsg(`✅ A 6-digit verification code has been sent to ${cleanEmail}`);
-      setFlowState('OTP_VERIFY');
-      setTimer(60);
-      setOtpValues(['', '', '', '', '', '']);
-      setTimeout(() => otpRefs[0].current?.focus(), 200);
+      if (signUpData.session && signUpData.user) {
+        const user = signUpData.user;
+        const generatedId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+        const { error: profileError } = await supabase.from('profiles').insert({
+          id: user.id,
+          email: cleanEmail,
+          mobile: formattedMobile,
+          name: fullName,
+          level: 'Rookie Rider',
+          unique_id: generatedId
+        });
+        if (profileError) {
+          console.error('Failed to create profile:', profileError.message);
+        }
+        completeLoginFlow(user, formattedMobile, fullName, 'Rookie Rider', generatedId);
+      } else {
+        setSuccessMsg('✅ Account registered! Please check your email inbox to confirm your account, then sign in.');
+        setFlowState('SIGN_IN');
+        setLoading(false);
+      }
     } catch (err) {
-      setError(err.message || 'Failed to send verification code. Please try again.');
+      setError(err.message || 'An unexpected error occurred during registration. Please try again.');
       setLoading(false);
     }
   };
@@ -760,7 +817,7 @@ export default function LoginScreen({ onLoginSuccess }) {
           <form onSubmit={handleSignUp} className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
               <h3 style={{ fontSize: '16px', color: 'var(--text-primary)', marginBottom: '4px' }}>Register New Biker Account</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '11.5px', margin: 0 }}>Verify with Email OTP, then set your password.</p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '11.5px', margin: 0 }}>Create a new account with email, mobile, and password.</p>
             </div>
 
             {/* Full Name */}
@@ -781,17 +838,35 @@ export default function LoginScreen({ onLoginSuccess }) {
               <input type="tel" placeholder="Mobile Number (e.g. 9876543210)" value={mobileNumber} onChange={(e) => { setMobileNumber(e.target.value.replace(/\D/g, '')); setError(''); }} onFocus={handleFocus} onBlur={handleBlur} style={inputStyle} required />
             </div>
 
+            {/* Password */}
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Lock size={16} style={iconAbsStyle} />
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Choose Password (min 6 chars)"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                style={inputStyleWithRight}
+                required
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+
             <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', padding: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               {loading ? (
                 <div style={{ width: '18px', height: '18px', border: '3px solid transparent', borderTopColor: '#fff', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
               ) : (
-                <>Send Verification Code <Mail size={16} /> <ArrowRight size={16} /></>
+                <>Register Account <ArrowRight size={16} /></>
               )}
             </button>
-
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0' }}>📧 A 6-digit OTP will be sent to your email address</p>
-            </div>
           </form>
         )}
 
