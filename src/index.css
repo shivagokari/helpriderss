@@ -421,15 +421,23 @@ input:focus, select:focus, textarea:focus {
   /* Compact section padding */
   .profile-section, 
   .my-rides, 
-  .lets-ride, 
+  .lets-ride-section, 
   .home-dashboard {
     padding: 14px 12px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   /* Compact Glass Panels */
   .glass-panel {
     padding: 12px 14px !important;
     border-radius: 12px !important;
+  }
+
+  /* Compact Stats Grid Boxes padding override to prevent overflow */
+  .stat-box {
+    padding: 10px 4px !important;
   }
 
   /* Inputs, selects, and textareas */

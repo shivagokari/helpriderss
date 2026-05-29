@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS public.rides (
   description TEXT DEFAULT '',
   joined_count INTEGER DEFAULT 1,
   join_requests JSONB DEFAULT '[]'::jsonb,
+  max_slots INTEGER DEFAULT 50,
   is_favorite BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );

@@ -24,7 +24,7 @@ export default function LetsRide({ user }) {
     distance: '',
     bikeType: 'All Bikes Welcome',
     description: '',
-    maxSlots: 120
+    maxSlots: 50
   });
 
   // Join Ride Form State
@@ -208,7 +208,7 @@ export default function LetsRide({ user }) {
             distance: newRide.distance,
             bike_type: newRide.bikeType,
             description: newRide.description,
-            max_slots: newRide.maxSlots ? parseInt(newRide.maxSlots, 10) : 120
+            max_slots: newRide.maxSlots ? parseInt(newRide.maxSlots, 10) : 50
           })
           .eq('id', editingSocialRide.id);
 
@@ -230,7 +230,7 @@ export default function LetsRide({ user }) {
           distance: newRide.distance,
           bike_type: newRide.bikeType,
           description: newRide.description,
-          max_slots: newRide.maxSlots ? parseInt(newRide.maxSlots, 10) : 120,
+          max_slots: newRide.maxSlots ? parseInt(newRide.maxSlots, 10) : 50,
           joined_count: 1,
           join_requests: []
         };
@@ -260,7 +260,7 @@ export default function LetsRide({ user }) {
       distance: '',
       bikeType: 'All Bikes Welcome',
       description: '',
-      maxSlots: 120
+      maxSlots: 50
     });
   };
 
@@ -276,7 +276,7 @@ export default function LetsRide({ user }) {
       distance: ride.distance || '',
       bikeType: ride.bikeType || 'All Bikes Welcome',
       description: ride.description || '',
-      maxSlots: ride.maxSlots || 120
+      maxSlots: ride.maxSlots || 50
     });
     setShowPostModal(true);
   };
@@ -507,7 +507,7 @@ export default function LetsRide({ user }) {
                   </div>
                   <div style={{ marginTop: '4px' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Joined / Slots</span>
-                    <div style={{ color: 'var(--secondary)', fontWeight: 'bold' }}>{ride.joinedCount} / {ride.maxSlots || 120} Bikers</div>
+                    <div style={{ color: 'var(--secondary)', fontWeight: 'bold' }}>{ride.joinedCount} / {ride.maxSlots || 50} Bikers</div>
                   </div>
                 </div>
 
@@ -583,7 +583,7 @@ export default function LetsRide({ user }) {
                 {!isOwner && (() => {
                   const myRequest = ride.joinRequests?.find(req => req.isMe);
                   if (!myRequest) {
-                    const isFull = ride.joinedCount >= (ride.maxSlots || 120);
+                    const isFull = ride.joinedCount >= (ride.maxSlots || 50);
                     return (
                       <button 
                         className="btn-secondary" 
@@ -686,7 +686,7 @@ export default function LetsRide({ user }) {
                     distance: '',
                     bikeType: 'All Bikes Welcome',
                     description: '',
-                    maxSlots: 120
+                    maxSlots: 50
                   });
                 }} 
                 style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}
@@ -782,17 +782,17 @@ export default function LetsRide({ user }) {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 <div>
-                  <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Slots Limit (Max 120) *</label>
+                  <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Slots Limit (Max 50) *</label>
                   <input 
                     type="number" 
                     required
                     min="1"
-                    max="120"
-                    placeholder="e.g. 120"
+                    max="50"
+                    placeholder="e.g. 50"
                     value={newRide.maxSlots}
                     onChange={(e) => {
                       let val = parseInt(e.target.value, 10);
-                      if (val > 120) val = 120;
+                      if (val > 50) val = 50;
                       if (val < 1) val = 1;
                       handlePostInputChange('maxSlots', isNaN(val) ? '' : val);
                     }}

@@ -685,7 +685,7 @@ export default function Profile({ user, onLogout, rides }) {
   if (emergencyContacts.length >= 1) badges.push({ title: 'Safety First', icon: '🛡️', color: '#ff2233' });
 
   return (
-    <div className="profile-section scroll-y mobile-compact-section" style={{ padding: '20px 16px', position: 'relative' }}>
+    <div className="profile-section scroll-y mobile-compact-section" style={{ padding: '20px 16px', position: 'relative', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
 
       {/* Profile Header */}
       <div style={{ textAlign: 'center', marginBottom: '20px' }} className="animate-fade-in">
@@ -737,15 +737,15 @@ export default function Profile({ user, onLogout, rides }) {
 
       {/* Stats Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-        <div className="glass-panel" style={{ padding: '12px 6px', textAlign: 'center' }}>
+        <div className="glass-panel stat-box" style={{ padding: '12px 6px', textAlign: 'center' }}>
           <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block' }}>KMs Ridden</span>
           <strong style={{ fontSize: '15px', color: 'white' }}>{totalKMs} KM</strong>
         </div>
-        <div className="glass-panel" style={{ padding: '12px 6px', textAlign: 'center' }}>
+        <div className="glass-panel stat-box" style={{ padding: '12px 6px', textAlign: 'center' }}>
           <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block' }}>Trips Done</span>
           <strong style={{ fontSize: '15px', color: 'white' }}>{totalTrips}</strong>
         </div>
-        <div className="glass-panel" style={{ padding: '12px 6px', textAlign: 'center' }}>
+        <div className="glass-panel stat-box" style={{ padding: '12px 6px', textAlign: 'center' }}>
           <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block' }}>Friends</span>
           <strong style={{ fontSize: '15px', color: 'white' }}>{friends.length}</strong>
         </div>
