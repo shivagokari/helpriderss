@@ -113,7 +113,8 @@ export default function LetsRide({ user }) {
           description: r.description,
           maxSlots: r.max_slots,
           joinedCount: r.joined_count,
-          joinRequests: Array.isArray(r.join_requests) ? r.join_requests : JSON.parse(r.join_requests || '[]')
+          joinRequests: Array.isArray(r.join_requests) ? r.join_requests : JSON.parse(r.join_requests || '[]'),
+          created_at: r.created_at
         }));
         setRides(mapped);
       }
@@ -193,6 +194,33 @@ export default function LetsRide({ user }) {
     if (isPastDateTime(newRide.date, formattedTime)) {
       showToast('⚠️ Cannot select a past date or time.');
       return;
+    }
+
+    // Check Posting Limits (only for new posts, not edits)
+    if (!editingSocialRide && user) {
+      const myRides = rides.filter(r => r.user_id === user.uid && r.created_at);
+      const nowMs = Date.now();
+      
+      const oneDayAgo = nowMs - 24 * 60 * 60 * 1000;
+      const oneWeekAgo = nowMs - 7 * 24 * 60 * 60 * 1000;
+      const oneMonthAgo = nowMs - 30 * 24 * 60 * 60 * 1000;
+      
+      const dailyPosts = myRides.filter(r => new Date(r.created_at).getTime() > oneDayAgo).length;
+      const weeklyPosts = myRides.filter(r => new Date(r.created_at).getTime() > oneWeekAgo).length;
+      const monthlyPosts = myRides.filter(r => new Date(r.created_at).getTime() > oneMonthAgo).length;
+      
+      if (dailyPosts >= 2) {
+        showToast('⚠️ Daily Limit Exceeded: You can only post at most 2 rides per day.');
+        return;
+      }
+      if (weeklyPosts >= 5) {
+        showToast('⚠️ Weekly Limit Exceeded: You can only post at most 5 rides per week.');
+        return;
+      }
+      if (monthlyPosts >= 9) {
+        showToast('⚠️ Monthly Limit Exceeded: You can only post at most 9 rides per month.');
+        return;
+      }
     }
 
     try {
@@ -283,6 +311,25 @@ export default function LetsRide({ user }) {
 
   // Trigger Safety Modal before Join Submission
   const handleJoinClick = (ride) => {
+    if (user) {
+      const alreadyRequested = ride.joinRequests?.some(req => req.user_id === user.uid);
+      if (alreadyRequested) {
+        showToast('⚠️ You have already submitted a join request for this ride.');
+        return;
+      }
+
+      const targetDate = ride.date;
+      const joinedRidesOnDate = rides.filter(r => {
+        if (r.id === ride.id) return false;
+        if (r.date !== targetDate) return false;
+        return r.joinRequests?.some(req => req.user_id === user.uid || (req.isMe && !req.user_id));
+      });
+
+      if (joinedRidesOnDate.length >= 2) {
+        showToast(`⚠️ Limit Reached: You can only join at most 2 rides scheduled for the same day (${targetDate}).`);
+        return;
+      }
+    }
     setSelectedRide(ride);
     setShowJoinModal(true);
   };
@@ -292,6 +339,26 @@ export default function LetsRide({ user }) {
     if (!joinForm.name || !joinForm.bikeModel || !joinForm.phone || !joinForm.age) {
       showToast('⚠️ Please fill out all details correctly.');
       return;
+    }
+
+    if (user && selectedRide) {
+      const alreadyRequested = selectedRide.joinRequests?.some(req => req.user_id === user.uid);
+      if (alreadyRequested) {
+        showToast('⚠️ You have already submitted a join request for this ride.');
+        return;
+      }
+
+      const targetDate = selectedRide.date;
+      const joinedRidesOnDate = rides.filter(r => {
+        if (r.id === selectedRide.id) return false;
+        if (r.date !== targetDate) return false;
+        return r.joinRequests?.some(req => req.user_id === user.uid || (req.isMe && !req.user_id));
+      });
+
+      if (joinedRidesOnDate.length >= 2) {
+        showToast(`⚠️ Limit Reached: You can only join at most 2 rides scheduled for the same day (${targetDate}).`);
+        return;
+      }
     }
 
     const cleanPhone = joinForm.phone.replace(/[\s\-()]/g, '');
@@ -326,6 +393,7 @@ export default function LetsRide({ user }) {
     try {
       const newRequest = { 
         id: 'req-' + Date.now(),
+        user_id: user ? user.uid : null,
         name: joinForm.name,
         bikeModel: joinForm.bikeModel,
         phone: joinForm.phone,
@@ -581,7 +649,7 @@ export default function LetsRide({ user }) {
 
                 {/* Join Action button / Status for other users */}
                 {!isOwner && (() => {
-                  const myRequest = ride.joinRequests?.find(req => req.isMe);
+                  const myRequest = ride.joinRequests?.find(req => user && (req.user_id === user.uid || (req.isMe && req.phone === user.phone)));
                   if (!myRequest) {
                     const isFull = ride.joinedCount >= (ride.maxSlots || 50);
                     return (
