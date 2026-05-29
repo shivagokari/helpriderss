@@ -3,7 +3,7 @@ import {
   X, Compass, MapPin, Calendar, Users, Bike, DollarSign, 
   Map, Fuel, Shield, Landmark, ArrowRight, ArrowLeft, 
   Sparkles, CloudSun, Eye, HelpCircle, HardHat, ShieldAlert,
-  CheckSquare, Square, AlertCircle, ExternalLink, Play, PlusCircle
+  CheckSquare, Square, AlertCircle, ExternalLink, Play, PlusCircle, Share2
 } from 'lucide-react';
 import { 
   searchLocationInIndia, 
@@ -77,6 +77,7 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
       numRiders: 'Solo',
       pillion: 'No Pillion (Solo Rider)',
       bikeModel: '',
+      manualMileage: '',
       ridingStyle: 'Cruising (Scenic/Relaxed)',
       budget: 'Moderate',
       hotelPreference: 'Standard Hotel',
@@ -811,7 +812,8 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
     // Mileage check based on bike specifications
     const isHighway = finalDistance > 100;
     const specs = computeBikeSpecs(formData.bikeModel, formData.ridingStyle, isHighway);
-    const mileage = specs.mileage;
+    const manualMil = parseFloat(formData.manualMileage);
+    const mileage = (!isNaN(manualMil) && manualMil > 0) ? manualMil : specs.mileage;
     
     const fuelRequired = Number((finalDistance / mileage).toFixed(1));
     const fuelCost = Math.round(fuelRequired * avgFuelPrice);
@@ -935,6 +937,33 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
 
     setGeneratedItinerary(newItinerary);
     setLoading(false);
+  };
+
+  const handleShareItinerary = () => {
+    if (!generatedItinerary) return;
+    
+    const summary = `🏍️ HELPRIDERSS Itinerary Summary 🏍️\n` +
+      `📍 Route: ${generatedItinerary.formData.startLocation} ➔ ${generatedItinerary.formData.destination}\n` +
+      `📅 Date: ${generatedItinerary.formData.rideDates} (${generatedItinerary.formData.rideTiming})\n` +
+      `📏 Total Distance: ${generatedItinerary.distance} KM\n` +
+      `💰 Est. Fuel Cost: ₹${generatedItinerary.fuelCost}\n` +
+      `🏍️ Machine: ${generatedItinerary.formData.bikeModel}\n\n` +
+      `Join me on Helpriderss!`;
+      
+    if (navigator.share) {
+      navigator.share({
+        title: `Biker Itinerary: ${generatedItinerary.formData.startLocation} to ${generatedItinerary.formData.destination}`,
+        text: summary,
+        url: window.location.origin
+      }).catch(err => {
+        console.warn("Share failed:", err);
+      });
+    } else {
+      navigator.clipboard.writeText(summary).then(() => {
+        setValidationError('✅ Itinerary details copied to clipboard! Share it anywhere.');
+        setShowValidationPopup(true);
+      });
+    }
   };
 
   const handleSaveAndConfirm = () => {
@@ -1345,13 +1374,22 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                <button className="btn-secondary" style={{ flex: 1 }} onClick={() => setGeneratedItinerary(null)}>
-                  Recalculate
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+                <button 
+                  className="btn-secondary" 
+                  style={{ width: '100%', padding: '12px', background: 'rgba(255,170,0,0.1)', borderColor: 'var(--secondary)', color: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold', borderRadius: '10px' }} 
+                  onClick={handleShareItinerary}
+                >
+                  <Share2 size={14} /> Share Itinerary
                 </button>
-                <button className="btn-primary" style={{ flex: 1.5 }} onClick={handleSaveAndConfirm}>
-                  Save Itinerary
-                </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button className="btn-secondary" style={{ flex: 1 }} onClick={() => setGeneratedItinerary(null)}>
+                    Recalculate
+                  </button>
+                  <button className="btn-primary" style={{ flex: 1.5 }} onClick={handleSaveAndConfirm}>
+                    Save Itinerary
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
@@ -1708,8 +1746,26 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
 
                     {/* Bike selection confirmation tag */}
                     {formData.bikeModel && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0,230,118,0.1)', border: '1px solid rgba(0,230,118,0.2)', padding: '6px 10px', borderRadius: '8px', fontSize: '11px', color: 'var(--success)', fontWeight: 'bold' }}>
-                        <span>Selected Machine: {formData.bikeModel}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0,230,118,0.1)', border: '1px solid rgba(0,230,118,0.2)', padding: '6px 10px', borderRadius: '8px', fontSize: '11px', color: 'var(--success)', fontWeight: 'bold' }}>
+                          <span>Selected Machine: {formData.bikeModel}</span>
+                        </div>
+                        <div className="animate-fade-in">
+                          <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                            Manual Bike Mileage (km/l, Optional)
+                          </label>
+                          <input 
+                            type="number" 
+                            placeholder="e.g. 35 (leave blank to use company claimed)" 
+                            value={formData.manualMileage || ''}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? '' : parseFloat(e.target.value);
+                              handleInputChange('manualMileage', val);
+                            }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                            style={{ width: '100%', fontSize: '13px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '10px 12px' }}
+                          />
+                        </div>
                       </div>
                     )}
 

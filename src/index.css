@@ -398,3 +398,115 @@ input:focus, select:focus, textarea:focus {
   animation: heartPulse 1.8s infinite ease-in-out;
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   MOBILE RESPONSIVE OVERRIDES
+   ────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  /* Global scaling overrides */
+  body {
+    font-size: 13px;
+  }
+
+  /* Compact headings */
+  h1 { font-size: 22px !important; }
+  h2 { font-size: 18px !important; }
+  h3 { font-size: 15px !important; }
+  h4 { font-size: 13px !important; }
+
+  /* App Shell content wrapper scaling */
+  .app-content {
+    height: calc(100% - 58px) !important;
+  }
+
+  /* Compact section padding */
+  .profile-section, 
+  .my-rides, 
+  .lets-ride, 
+  .home-dashboard {
+    padding: 14px 12px !important;
+  }
+
+  /* Compact Glass Panels */
+  .glass-panel {
+    padding: 12px 14px !important;
+    border-radius: 12px !important;
+  }
+
+  /* Inputs, selects, and textareas */
+  input, select, textarea {
+    padding: 10px 12px !important;
+    font-size: 12px !important;
+    border-radius: 8px !important;
+  }
+
+  /* Compact Buttons */
+  .btn-primary, 
+  .btn-secondary {
+    padding: 10px 16px !important;
+    font-size: 12px !important;
+    border-radius: 10px !important;
+    height: auto !important;
+  }
+
+  /* Floating Action Button compacting */
+  .fab {
+    width: 46px !important;
+    height: 46px !important;
+    bottom: 72px !important;
+    right: 14px !important;
+  }
+  .fab svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  /* Bottom Navigation compacting */
+  .app-shell > nav {
+    height: 58px !important;
+  }
+  .app-shell > nav button {
+    gap: 2px !important;
+  }
+  .app-shell > nav button svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+  .app-shell > nav button span {
+    font-size: 8px !important;
+  }
+
+  /* Profile Screen specific overrides */
+  .profile-avatar-wrapper {
+    width: 74px !important;
+    height: 74px !important;
+    margin-bottom: 8px !important;
+  }
+  .profile-avatar, 
+  .profile-avatar-placeholder {
+    width: 74px !important;
+    height: 74px !important;
+    font-size: 26px !important;
+    border-width: 2.5px !important;
+  }
+  .profile-name {
+    font-size: 18px !important;
+  }
+  .profile-level {
+    font-size: 11px !important;
+  }
+  .unique-id-code {
+    font-size: 18px !important;
+  }
+  .unique-id-card button {
+    padding: 6px 12px !important;
+    font-size: 11px !important;
+    border-radius: 8px !important;
+  }
+
+  /* Reduce scroll container padding bottom */
+  .scroll-y {
+    padding-bottom: 90px !important;
+  }
+}
+
+

@@ -150,9 +150,23 @@ export default function App() {
   const isAdmin = user?.email === 'admin@helpriderss.com' || user?.level === 'System Administrator';
   const unreadDevCount = devContacts.filter(c => !c.is_read).length;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn("Failed to sign out from Supabase Auth:", e);
+    }
     localStorage.removeItem('helpriders_session');
     sessionStorage.removeItem('helpriders_session');
+    localStorage.removeItem('helpriders_custom_rides');
+    localStorage.removeItem('helpriders_reminders');
+    localStorage.removeItem('helpriders_essentials');
+    localStorage.removeItem('helpriders_ride_ratings');
+    localStorage.removeItem('helpriders_first_login');
+    localStorage.removeItem('helpriders_custom_bikes');
+    localStorage.removeItem('helpriders_last_dev_contact');
+    localStorage.removeItem('helpriders_weather_cache');
+    setCustomRides([]);
     setUser(null);
     setActiveTab('home');
   };
@@ -302,7 +316,7 @@ export default function App() {
       )}
 
       {/* Main Screen Router Box */}
-      <div style={{ flex: 1, position: 'relative', height: 'calc(100% - 72px)', overflow: 'hidden' }}>
+      <div className="app-content" style={{ flex: 1, position: 'relative', height: 'calc(100% - 72px)', overflow: 'hidden' }}>
         <Suspense fallback={
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0d12' }}>
             <div style={{ textAlign: 'center' }}>
@@ -347,7 +361,7 @@ export default function App() {
       </div>
 
       {/* Floating Action Button (Quick New Ride Wizard Trigger) */}
-      {activeTab !== 'profile' && (
+      {activeTab !== 'profile' && activeTab !== 'lets-ride' && (
         <button 
           className="fab" 
           onClick={() => setNewRideOpen(true)}

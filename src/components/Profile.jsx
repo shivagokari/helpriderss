@@ -685,15 +685,15 @@ export default function Profile({ user, onLogout, rides }) {
   if (emergencyContacts.length >= 1) badges.push({ title: 'Safety First', icon: '🛡️', color: '#ff2233' });
 
   return (
-    <div className="profile-section scroll-y" style={{ padding: '20px 16px', position: 'relative' }}>
+    <div className="profile-section scroll-y mobile-compact-section" style={{ padding: '20px 16px', position: 'relative' }}>
 
       {/* Profile Header */}
       <div style={{ textAlign: 'center', marginBottom: '20px' }} className="animate-fade-in">
-        <div style={{ position: 'relative', width: '95px', height: '95px', margin: '0 auto 12px', cursor: 'pointer' }} onClick={() => fileInputRef.current?.click()}>
+        <div className="profile-avatar-wrapper" style={{ position: 'relative', width: '95px', height: '95px', margin: '0 auto 12px', cursor: 'pointer' }} onClick={() => fileInputRef.current?.click()}>
           {avatar ? (
-            <img src={avatar} alt="Avatar" style={{ width: '95px', height: '95px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--primary)', boxShadow: '0 8px 25px rgba(255,85,0,0.25)' }} />
+            <img className="profile-avatar" src={avatar} alt="Avatar" style={{ width: '95px', height: '95px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--primary)', boxShadow: '0 8px 25px rgba(255,85,0,0.25)' }} />
           ) : (
-            <div style={{ width: '95px', height: '95px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px', fontWeight: 'bold', color: 'white', border: '3px solid var(--bg-tertiary)', boxShadow: '0 8px 25px rgba(255,85,0,0.25)' }}>
+            <div className="profile-avatar-placeholder" style={{ width: '95px', height: '95px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px', fontWeight: 'bold', color: 'white', border: '3px solid var(--bg-tertiary)', boxShadow: '0 8px 25px rgba(255,85,0,0.25)' }}>
               {(user?.displayName || 'R')[0].toUpperCase()}
             </div>
           )}
@@ -702,16 +702,16 @@ export default function Profile({ user, onLogout, rides }) {
           </div>
           <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" style={{ display: 'none' }} />
         </div>
-        <h2 style={{ fontSize: '22px', color: 'white', marginBottom: '2px' }}>{user?.displayName || 'My Profile'}</h2>
-        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Level {levelNum} — {levelName}</span>
+        <h2 className="profile-name" style={{ fontSize: '22px', color: 'white', marginBottom: '2px' }}>{user?.displayName || 'My Profile'}</h2>
+        <span className="profile-level" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Level {levelNum} — {levelName}</span>
       </div>
 
       {/* Unique Rider ID Card */}
-      <div className="glass-panel" style={{ padding: '14px 16px', marginBottom: '16px', background: 'linear-gradient(135deg, rgba(255,85,0,0.08) 0%, rgba(255,170,0,0.05) 100%)', border: '1px solid rgba(255,170,0,0.2)' }}>
+      <div className="glass-panel unique-id-card" style={{ padding: '14px 16px', marginBottom: '16px', background: 'linear-gradient(135deg, rgba(255,85,0,0.08) 0%, rgba(255,170,0,0.05) 100%)', border: '1px solid rgba(255,170,0,0.2)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Your Unique Rider ID</span>
-            <div style={{ fontSize: '22px', fontWeight: 'bold', color: 'var(--secondary)', letterSpacing: '2px', marginTop: '2px' }}>{uniqueId}</div>
+            <div className="unique-id-code" style={{ fontSize: '22px', fontWeight: 'bold', color: 'var(--secondary)', letterSpacing: '2px', marginTop: '2px' }}>{uniqueId}</div>
             <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Share this ID so friends can find you</span>
           </div>
           <button onClick={copyUniqueId} style={{ background: 'rgba(255,170,0,0.15)', border: '1px solid rgba(255,170,0,0.3)', borderRadius: '10px', padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--secondary)', fontWeight: 'bold', fontSize: '12px' }}>

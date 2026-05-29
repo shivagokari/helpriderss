@@ -103,7 +103,7 @@ export default function LetsRide({ user }) {
           user_id: r.user_id,
           creator: r.creator,
           creatorPhone: r.creator_phone,
-          creatorEmail: r.creator_email || '',
+          creatorEmail: '',
           title: r.title,
           route: r.route,
           date: r.date,
@@ -223,7 +223,6 @@ export default function LetsRide({ user }) {
           user_id: user ? user.uid : null,
           creator: user ? (user.displayName || user.email.split('@')[0]) : 'You (Host)',
           creator_phone: user ? (user.phone || '+91 99009 90099') : '+91 99009 90099',
-          creator_email: user ? user.email : '',
           title: newRide.title,
           route: routeStr,
           date: newRide.date,
@@ -469,7 +468,7 @@ export default function LetsRide({ user }) {
           </div>
         ) : (
           rides.map(ride => {
-            const isOwner = user && (ride.creatorEmail === user.email || (ride.creator === 'You (Host)' && !ride.creatorEmail));
+            const isOwner = user && (ride.user_id === user.uid || (ride.creator === 'You (Host)' && !ride.user_id));
             return (
               <div key={ride.id} className="glass-panel animate-fade-in" style={{ padding: '18px', background: 'linear-gradient(135deg, rgba(28,28,36,0.5) 0%, rgba(18,18,22,0.85) 100%)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>

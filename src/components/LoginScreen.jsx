@@ -64,6 +64,7 @@ export default function LoginScreen({ onLoginSuccess }) {
   const [mobileNumber, setMobileNumber] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [recoveryUniqueId, setRecoveryUniqueId] = useState('');
   
   const [showPassword, setShowPassword] = useState(false);
   const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
@@ -592,11 +593,18 @@ export default function LoginScreen({ onLoginSuccess }) {
     }
   };
 
-  // ─── Forgot Password → Send OTP ──────────────────────
-  const handleForgotPassword = async () => {
+  // ─── Instant Password Recovery (Zero-OTP DB trigger-backed RPC) ────────────
+  const handleRecoverPassword = async (e) => {
+    e.preventDefault();
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
-      setError('Please enter your registered Email Address first');
+    const cleanMobile = mobileNumber.trim();
+    
+    if (!cleanEmail || !cleanMobile || !newPassword) {
+      setError('Please fill in all verification fields');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters long');
       return;
     }
     setError('');
@@ -604,27 +612,26 @@ export default function LoginScreen({ onLoginSuccess }) {
     setLoading(true);
 
     try {
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: cleanEmail,
-        options: {
-          shouldCreateUser: false
-        }
+      // Call secure database function (verifies Email & Mobile matching)
+      const { data: isSuccess, error: rpcError } = await supabase.rpc('recover_user_password', {
+        p_email: cleanEmail,
+        p_mobile: cleanMobile,
+        p_new_password: newPassword
       });
 
-      if (otpError) {
-        setError(otpError.message);
-        setLoading(false);
-        return;
-      }
+      if (rpcError) throw rpcError;
 
-      setLoading(false);
-      setSuccessMsg(`✅ Recovery code sent to ${cleanEmail}`);
-      setFlowState('FORGOT_OTP');
-      setTimer(60);
-      setOtpValues(['', '', '', '', '', '']);
-      setTimeout(() => otpRefs[0].current?.focus(), 200);
+      if (isSuccess) {
+        setSuccessMsg('✅ Password reset successful! Please sign in with your new credentials.');
+        setFlowState('SIGN_IN');
+        setPassword(newPassword); // fill password box automatically for helper
+        setMobileNumber('');
+      } else {
+        setError('❌ Recovery Failed: No matching biker account found. Please check your Email and Mobile Number.');
+      }
     } catch (err) {
-      setError(err.message || 'Failed to send recovery code.');
+      setError(err.message || 'Failed to execute password recovery.');
+    } finally {
       setLoading(false);
     }
   };
@@ -897,8 +904,8 @@ export default function LoginScreen({ onLoginSuccess }) {
             </button>
 
             <div style={{ textAlign: 'center', fontSize: '12px' }}>
-              <button type="button" onClick={handleForgotPassword} style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
-                Forgot Password? Recover with Email OTP
+              <button type="button" onClick={() => { setFlowState('RECOVER_PASSWORD'); setError(''); setSuccessMsg(''); }} style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
+                Forgot Password? Reset instantly
               </button>
             </div>
           </form>
@@ -1067,6 +1074,86 @@ export default function LoginScreen({ onLoginSuccess }) {
               )}
             </div>
           </div>
+        )}
+
+        {/* ═══════ FLOW: RECOVER_PASSWORD ═══════ */}
+        {flowState === 'RECOVER_PASSWORD' && (
+          <form onSubmit={handleRecoverPassword} className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div>
+              <h3 style={{ fontSize: '16px', color: 'var(--text-primary)', marginBottom: '4px' }}>Reset Password</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '11.5px', margin: 0 }}>
+                Enter your registered details to verify your identity and set a new password instantly.
+              </p>
+            </div>
+
+            {/* Email Input */}
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Mail size={16} style={iconAbsStyle} />
+              <input
+                type="email"
+                placeholder="Registered Email Address"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                style={inputStyle}
+                required
+              />
+            </div>
+
+            {/* Mobile Number Input */}
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Phone size={16} style={iconAbsStyle} />
+              <input
+                type="tel"
+                placeholder="Registered Mobile (e.g. 9876543210)"
+                value={mobileNumber}
+                onChange={(e) => { setMobileNumber(e.target.value.replace(/\D/g, '')); setError(''); }}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                style={inputStyle}
+                required
+              />
+            </div>
+
+
+
+            {/* New Password Input */}
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Lock size={16} style={iconAbsStyle} />
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Choose New Password (min 6 chars)"
+                value={newPassword}
+                onChange={(e) => { setNewPassword(e.target.value); setError(''); }}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                style={inputStyleWithRight}
+                required
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+
+            <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', padding: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              {loading ? (
+                <div style={{ width: '18px', height: '18px', border: '3px solid transparent', borderTopColor: '#fff', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
+              ) : (
+                <>Reset & Update Password <ArrowRight size={16} /></>
+              )}
+            </button>
+
+            <div style={{ textAlign: 'center', fontSize: '12px', marginTop: '6px' }}>
+              <button type="button" onClick={() => { setFlowState('SIGN_IN'); setError(''); setSuccessMsg(''); }} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
+                ← Back to Sign In
+              </button>
+            </div>
+          </form>
         )}
 
         {/* ═══════ FLOW E: CREATE_PASSWORD ═══════ */}

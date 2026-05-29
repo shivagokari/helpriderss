@@ -88,6 +88,24 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
 
   useEffect(() => {
     const fetchWeather = async (lat, lon, cityName) => {
+      // Check cache first
+      const cached = localStorage.getItem('helpriders_weather_cache');
+      if (cached) {
+        try {
+          const { data, timestamp, city } = JSON.parse(cached);
+          const ageInMs = Date.now() - timestamp;
+          const ageInHours = ageInMs / (1000 * 60 * 60);
+          if (city === cityName && ageInHours < 1) {
+            console.log(`[Weather] Using cached weather for ${cityName} (age: ${ageInHours.toFixed(2)}h)`);
+            setWeatherData(data);
+            setWeatherLoading(false);
+            return;
+          }
+        } catch (e) {
+          console.warn("Failed to parse cached weather", e);
+        }
+      }
+
       setWeatherLoading(true);
       try {
         const response = await fetch(
@@ -110,7 +128,7 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
           61: { text: 'Slight Rain', icon: '🌧️', bg: 'linear-gradient(to bottom, #3a6073, #16222f)' },
           63: { text: 'Moderate Rain', icon: '🌧️', bg: 'linear-gradient(to bottom, #3a6073, #16222f)' },
           65: { text: 'Heavy Rain', icon: '🌧️', bg: 'linear-gradient(to bottom, #0f2027, #2c5364)' },
-          71: { text: 'Slight Snowfall', icon: '❄️', bg: 'linear-gradient(to bottom, #e6dada, #274046)' },
+          71: { text: 'Slight Snowfall', icon: '❄️', bg: 'linear-gradient(to bottom, #e6dada, #274046) ' },
           73: { text: 'Moderate Snowfall', icon: '❄️', bg: 'linear-gradient(to bottom, #e6dada, #274046)' },
           75: { text: 'Heavy Snowfall', icon: '❄️', bg: 'linear-gradient(to bottom, #e6dada, #274046)' },
           80: { text: 'Slight Rain Showers', icon: '🌦️', bg: 'linear-gradient(to bottom, #3a6073, #16222f)' },
@@ -145,7 +163,7 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
           conditionBg = 'linear-gradient(to bottom, #757f9a, #d7dde8)';
         }
 
-        setWeatherData({
+        const parsedWeather = {
           temp: `${tempVal}°C`,
           conditions: conditionText,
           icon: conditionIcon,
@@ -153,7 +171,15 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
           windSpeed: `${data.current_weather.windspeed} km/h`,
           humidity: `${data.hourly.relativehumidity_2m[0]}%`,
           warning: data.current_weather.temperature > 38 ? '🥵 Thermal Alert: Ambient heat exceeds 38°C.' : null
-        });
+        };
+
+        setWeatherData(parsedWeather);
+        // Save to cache
+        localStorage.setItem('helpriders_weather_cache', JSON.stringify({
+          data: parsedWeather,
+          timestamp: Date.now(),
+          city: cityName
+        }));
       } catch (err) {
         console.warn('Live weather api error, falling back to simulator:', err);
         const sim = generateLocationWeather(lat, lon, new Date().toISOString().split('T')[0]);
@@ -179,7 +205,7 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
           conditionBg = 'linear-gradient(to bottom, #757f9a, #d7dde8)';
         }
 
-        setWeatherData({
+        const parsedWeather = {
           temp: sim.temp,
           conditions: conditionText,
           icon: conditionIcon,
@@ -187,7 +213,15 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
           windSpeed: sim.wind.split('|')[0].replace('Wind:', '').trim(),
           humidity: sim.wind.split('|')[1].replace('Humidity:', '').trim(),
           warning: tempVal > 38 ? '🥵 Thermal Alert: Ambient heat exceeds 38°C.' : null
-        });
+        };
+
+        setWeatherData(parsedWeather);
+        // Save to cache
+        localStorage.setItem('helpriders_weather_cache', JSON.stringify({
+          data: parsedWeather,
+          timestamp: Date.now(),
+          city: cityName
+        }));
       } finally {
         setWeatherLoading(false);
       }
