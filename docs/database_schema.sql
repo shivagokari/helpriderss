@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS public.friend_requests (
   from_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
   to_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
   status TEXT DEFAULT 'pending', -- 'pending' | 'accepted' | 'blocked'
+  note TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(from_id, to_id)
 );
@@ -132,3 +133,40 @@ CREATE POLICY "Users can read their own messages" ON public.messages
 DROP POLICY IF EXISTS "Users can insert messages" ON public.messages;
 CREATE POLICY "Users can insert messages" ON public.messages
   FOR INSERT TO authenticated WITH CHECK (auth.uid() = sender_id);
+
+
+-- 6. Password Recovery RPC function
+CREATE OR REPLACE FUNCTION public.recover_user_password(
+  p_email TEXT,
+  p_mobile TEXT,
+  p_new_password TEXT
+)
+RETURNS BOOLEAN
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_user_id UUID;
+  v_clean_p_mobile TEXT;
+BEGIN
+  v_clean_p_mobile := regexp_replace(p_mobile, '\D', '', 'g');
+  IF length(v_clean_p_mobile) = 10 THEN
+    v_clean_p_mobile := '91' || v_clean_p_mobile;
+  END IF;
+
+  SELECT id INTO v_user_id
+  FROM public.profiles
+  WHERE LOWER(email) = LOWER(p_email)
+    AND regexp_replace(mobile, '\D', '', 'g') = v_clean_p_mobile;
+
+  IF v_user_id IS NULL THEN
+    RETURN FALSE;
+  END IF;
+
+  UPDATE auth.users
+  SET encrypted_password = crypt(p_new_password, gen_salt('bf'))
+  WHERE id = v_user_id;
+
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;
+

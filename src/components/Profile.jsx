@@ -6,6 +6,7 @@ import {
   Copy, UserPlus, Search, Check, Ban, Bell, Share2, ChevronRight, Users
 } from 'lucide-react';
 import { supabase } from '../utils/supabase';
+import { BIKES_DATABASE } from '../utils/geo';
 
 // ─── Outside component to prevent keyboard re-mount ────────────────────────
 const inputStyle = { width: '100%', padding: '10px 12px', fontSize: '13px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', boxSizing: 'border-box' };
@@ -47,7 +48,7 @@ export default function Profile({ user, onLogout, rides }) {
 
   // ── Gamification ─────────────────────────────────────────────────────────
   const baselineKMs = 0;
-  const totalKMs = baselineKMs + (rides || []).reduce((sum, r) => sum + (r.distance || 0), 0);
+  const totalKMs = baselineKMs + (rides || []).filter(r => r.status === 'Completed').reduce((sum, r) => sum + (r.distance || 0), 0);
   const totalTrips = (rides || []).filter(r => r.status === 'Completed').length;
 
   let levelName = 'Rookie Rider', levelNum = 1, nextLevelKM = 500, prevLevelKM = 0;
@@ -973,7 +974,29 @@ export default function Profile({ user, onLogout, rides }) {
         </div>
 
         <form onSubmit={handleAddBike} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <input type="text" placeholder="Bike Name (e.g. KTM Duke 390)" value={newBikeName} onChange={e => setNewBikeName(e.target.value)} style={smallInputStyle} />
+          <select 
+            value={newBikeName} 
+            onChange={e => {
+              const val = e.target.value;
+              setNewBikeName(val);
+              const matched = BIKES_DATABASE.find(b => b.name === val);
+              if (matched) {
+                const t = matched.type.toLowerCase();
+                if (t.includes('cruiser')) setNewBikeType('Cruiser');
+                else if (t.includes('adventure') || t.includes('tourer')) setNewBikeType('Adventure');
+                else if (t.includes('street') || t.includes('naked') || t.includes('roadster')) setNewBikeType('Streetfighter');
+                else if (t.includes('dual-sport') || t.includes('scrambler') || t.includes('sport-scrambler')) setNewBikeType('Dual-sport');
+                else if (t.includes('scooter')) setNewBikeType('Scooter');
+                else if (t.includes('sports') || t.includes('hypersport')) setNewBikeType('Sports');
+              }
+            }} 
+            style={smallInputStyle}
+          >
+            <option value="">Select Bike Model</option>
+            {BIKES_DATABASE.map((b, idx) => (
+              <option key={idx} value={b.name}>{b.name} ({b.type})</option>
+            ))}
+          </select>
           <div style={{ display: 'flex', gap: '8px' }}>
             <input type="text" placeholder="Number Plate" value={newBikeNumber} onChange={e => setNewBikeNumber(e.target.value)} style={{ ...smallInputStyle, flex: 1.5 }} />
             <select value={newBikeType} onChange={e => setNewBikeType(e.target.value)} style={{ ...smallInputStyle, flex: 1 }}>

@@ -612,10 +612,20 @@ export default function LoginScreen({ onLoginSuccess }) {
     setLoading(true);
 
     try {
+      // Normalize mobile to standard "+91 XXXXXXXXXX" format to match database profiles
+      const cleanMobileDigits = cleanMobile.replace(/\D/g, '');
+      let normalizedMobile = cleanMobileDigits;
+      if (cleanMobileDigits.length === 12 && cleanMobileDigits.startsWith('91')) {
+        normalizedMobile = cleanMobileDigits.substring(2);
+      } else if (cleanMobileDigits.length === 11 && cleanMobileDigits.startsWith('0')) {
+        normalizedMobile = cleanMobileDigits.substring(1);
+      }
+      const formattedMobile = `+91 ${normalizedMobile}`;
+
       // Call secure database function (verifies Email & Mobile matching)
       const { data: isSuccess, error: rpcError } = await supabase.rpc('recover_user_password', {
         p_email: cleanEmail,
-        p_mobile: cleanMobile,
+        p_mobile: formattedMobile,
         p_new_password: newPassword
       });
 

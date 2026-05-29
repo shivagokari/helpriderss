@@ -39,7 +39,7 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
   const [userGarage, setUserGarage] = useState([]);
 
   // Calculate statistics from real user rides
-  const totalKMs = (rides || []).reduce((sum, r) => sum + (r.distance || 0), 0);
+  const totalKMs = (rides || []).filter(r => r.status === 'Completed').reduce((sum, r) => sum + (r.distance || 0), 0);
   const totalTrips = (rides || []).filter(r => r.status === 'Completed').length;
 
   let levelName = 'Rookie Rider';
@@ -272,6 +272,7 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
           setUserGarage(data.garage);
           if (data.garage.length > 0) {
             setSelectedBike(data.garage[0].name);
+            updateCalculations(data.garage[0].name, startCoords, destCoords, fuelDistance);
           }
         }
       } catch (err) {

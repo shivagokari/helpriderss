@@ -55,26 +55,40 @@ export default function App() {
     localStorage.removeItem('helpriders_first_login');
   };
 
-  // User-created rides list state (persisted dynamically)
-  const [customRides, setCustomRides] = useState(() => {
-    const saved = localStorage.getItem('helpriders_custom_rides');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.warn("Failed to parse saved rides", e);
-      }
-    }
-    return [];
-  });
-
+  const loadedUserIdRef = useRef(null);
   const [editingRide, setEditingRide] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
 
-  // Persist custom rides to localStorage
+  // User-created rides list state (persisted dynamically per user)
+  const [customRides, setCustomRides] = useState([]);
+
+  // Load custom rides when user shifts
   useEffect(() => {
-    localStorage.setItem('helpriders_custom_rides', JSON.stringify(customRides));
-  }, [customRides]);
+    if (user && user.uid) {
+      const saved = localStorage.getItem(`helpriders_custom_rides_${user.uid}`);
+      if (saved) {
+        try {
+          setCustomRides(JSON.parse(saved));
+        } catch (e) {
+          console.warn("Failed to parse saved user rides", e);
+          setCustomRides([]);
+        }
+      } else {
+        setCustomRides([]);
+      }
+      loadedUserIdRef.current = user.uid;
+    } else {
+      setCustomRides([]);
+      loadedUserIdRef.current = null;
+    }
+  }, [user]);
+
+  // Persist custom rides to localStorage when they change
+  useEffect(() => {
+    if (user && user.uid && loadedUserIdRef.current === user.uid) {
+      localStorage.setItem(`helpriders_custom_rides_${user.uid}`, JSON.stringify(customRides));
+    }
+  }, [customRides, user]);
 
   // Silently check and verify the Supabase session in the background
   useEffect(() => {
@@ -158,7 +172,6 @@ export default function App() {
     }
     localStorage.removeItem('helpriders_session');
     sessionStorage.removeItem('helpriders_session');
-    localStorage.removeItem('helpriders_custom_rides');
     localStorage.removeItem('helpriders_reminders');
     localStorage.removeItem('helpriders_essentials');
     localStorage.removeItem('helpriders_ride_ratings');

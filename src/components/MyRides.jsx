@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   History, Calendar, Heart, MapPin, Gauge, Fuel, Clock, 
-  DollarSign, Star, CloudSun, Film, ChevronDown, ChevronUp, Play, ExternalLink
+  DollarSign, Star, CloudSun, Film, ChevronDown, ChevronUp, Play, ExternalLink,
+  Trash2
 } from 'lucide-react';
 import { generateGoogleMapsLink } from '../utils/geo';
 
@@ -297,58 +298,84 @@ export default function MyRides({ rides, onOpenReplay, onEditRide, onDeleteRide,
                     {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </button>
                   
-                  {ride.status === 'Upcoming' && (
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      {isRideTimePassed(ride) && ride.status !== 'Completed' && onCompleteRide && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setRatingModalRide(ride);
-                            setSelectedRating(0);
-                            setHoverRating(0);
-                          }}
-                          style={{
-                            padding: '4px 10px',
-                            fontSize: '10px',
-                            borderRadius: '6px',
-                            background: 'rgba(0, 230, 118, 0.1)',
-                            border: '1px solid rgba(0, 230, 118, 0.25)',
-                            color: 'var(--success)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '3px',
-                            fontWeight: '600'
-                          }}
-                        >
-                          ✓ Mark Completed
-                        </button>
-                      )}
-                      {onEditRide && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEditRide(ride);
-                          }}
-                          style={{
-                            padding: '4px 10px',
-                            fontSize: '10px',
-                            borderRadius: '6px',
-                            background: 'rgba(255, 85, 0, 0.1)',
-                            border: '1px solid rgba(255, 85, 0, 0.25)',
-                            color: 'var(--primary)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '3px',
-                            fontWeight: '600'
-                          }}
-                        >
-                          ✏️ Edit
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
+                    {ride.status === 'Upcoming' && (
+                      <>
+                        {isRideTimePassed(ride) && ride.status !== 'Completed' && onCompleteRide && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRatingModalRide(ride);
+                              setSelectedRating(0);
+                              setHoverRating(0);
+                            }}
+                            style={{
+                              padding: '4px 10px',
+                              fontSize: '10px',
+                              borderRadius: '6px',
+                              background: 'rgba(0, 230, 118, 0.1)',
+                              border: '1px solid rgba(0, 230, 118, 0.25)',
+                              color: 'var(--success)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              fontWeight: '600'
+                            }}
+                          >
+                            ✓ Mark Completed
+                          </button>
+                        )}
+                        {onEditRide && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditRide(ride);
+                            }}
+                            style={{
+                              padding: '4px 10px',
+                              fontSize: '10px',
+                              borderRadius: '6px',
+                              background: 'rgba(255, 85, 0, 0.1)',
+                              border: '1px solid rgba(255, 85, 0, 0.25)',
+                              color: 'var(--primary)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              fontWeight: '600'
+                            }}
+                          >
+                            ✏️ Edit
+                          </button>
+                        )}
+                      </>
+                    )}
+                    {onDeleteRide && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmDeleteRideId(ride.id);
+                        }}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '10px',
+                          borderRadius: '6px',
+                          background: 'rgba(255, 34, 51, 0.08)',
+                          border: '1px solid rgba(255, 34, 51, 0.2)',
+                          color: 'var(--accent)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          fontWeight: '600',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <Trash2 size={11} /> Delete
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Expanded Details section */}
@@ -536,6 +563,58 @@ export default function MyRides({ rides, onOpenReplay, onEditRide, onDeleteRide,
                 }}
               >
                 ✓ Mark Complete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Delete Confirmation Modal ─── */}
+      {confirmDeleteRideId && (
+        <div
+          className="bottom-sheet-overlay animate-fade-in"
+          onClick={() => setConfirmDeleteRideId(null)}
+        >
+          <div
+            className="bottom-sheet animate-zoom-in"
+            onClick={(e) => e.stopPropagation()}
+            style={{ padding: '24px 20px', textAlign: 'center' }}
+          >
+            <div style={{ fontSize: '36px', marginBottom: '8px' }}>🗑️</div>
+            <h3 style={{ fontSize: '17px', color: 'white', marginBottom: '4px' }}>
+              Delete Ride
+            </h3>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: '1.4' }}>
+              Are you sure you want to delete this ride? This action cannot be undone.
+            </p>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setConfirmDeleteRideId(null)}
+                className="btn-secondary"
+                style={{ flex: 1, padding: '12px', fontSize: '13px' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (onDeleteRide) onDeleteRide(confirmDeleteRideId);
+                  setConfirmDeleteRideId(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  background: 'linear-gradient(135deg, var(--accent), #cc1122)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s'
+                }}
+              >
+                Delete Ride
               </button>
             </div>
           </div>
