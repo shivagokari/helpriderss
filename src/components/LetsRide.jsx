@@ -5,22 +5,25 @@ import {
 } from 'lucide-react';
 import { BIKES_DATABASE } from '../utils/geo';
 
-export default function LetsRide() {
+export default function LetsRide({ user }) {
   const [rides, setRides] = useState([]);
   const [showPostModal, setShowPostModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [selectedRide, setSelectedRide] = useState(null);
+  const [editingSocialRide, setEditingSocialRide] = useState(null);
   
   // New Ride Form State
   const [newRide, setNewRide] = useState({
     title: '',
-    route: '',
+    startPoint: '',
+    destination: '',
     date: '',
     time: '',
     distance: '',
     bikeType: 'All Bikes Welcome',
-    description: ''
+    description: '',
+    maxSlots: 120
   });
 
   // Join Ride Form State
@@ -43,6 +46,46 @@ export default function LetsRide() {
     }, 3500);
   };
 
+  // Helper functions for time formatting
+  const formatTime12hr = (timeStr) => {
+    if (!timeStr) return '';
+    if (timeStr.toLowerCase().includes('am') || timeStr.toLowerCase().includes('pm')) {
+      return timeStr;
+    }
+    const parts = timeStr.split(':');
+    if (parts.length >= 2) {
+      let hours = parseInt(parts[0], 10);
+      const minutes = parts[1];
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      return `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`;
+    }
+    return timeStr;
+  };
+
+  const convert12hrTo24hr = (time12h) => {
+    if (!time12h) return '';
+    if (!time12h.toLowerCase().includes('am') && !time12h.toLowerCase().includes('pm')) {
+      return time12h;
+    }
+    const parts = time12h.trim().split(/\s+/);
+    if (parts.length < 2) return time12h;
+    const time = parts[0];
+    const modifier = parts[1];
+    const timeParts = time.split(':');
+    if (timeParts.length < 2) return time12h;
+    let hours = timeParts[0];
+    const minutes = timeParts[1];
+    if (hours === '12') {
+      hours = '00';
+    }
+    if (modifier.toUpperCase() === 'PM') {
+      hours = parseInt(hours, 10) + 12;
+    }
+    return `${hours.toString().padStart(2, '0')}:${minutes}`;
+  };
+
   // Load rides & notifications from localStorage or seed defaults
   useEffect(() => {
     const savedRides = localStorage.getItem('helpriders_social_rides');
@@ -51,6 +94,7 @@ export default function LetsRide() {
         id: 'social-1',
         creator: 'Rahul Sharma',
         creatorPhone: '+91 98765 43210',
+        creatorEmail: 'rahul@helpriderss.com',
         title: 'Sunday Morning Cruise to Yadagirigutta',
         route: 'Hyderabad ➔ Yadagirigutta Temple',
         date: '2026-05-31',
@@ -59,6 +103,7 @@ export default function LetsRide() {
         bikeType: 'Cruisers & Commuters',
         description: 'Planning a relaxed breakfast ride. Riding at a comfortable pace of 70-80 km/h. Meetup at Uppal Metro Station.',
         joinedCount: 4,
+        maxSlots: 120,
         joinRequests: [
           { id: 'req-1', name: 'Karthik Kumar', bikeModel: 'Bajaj Pulsar N160', phone: '+91 91234 56789', age: '24', crewType: 'Solo', status: 'Pending' },
           { id: 'req-2', name: 'Srinivas Rao', bikeModel: 'Honda Unicorn', phone: '+91 82345 67890', age: '32', crewType: 'Duo', status: 'Pending' }
@@ -68,6 +113,7 @@ export default function LetsRide() {
         id: 'social-2',
         creator: 'Vikram Singh',
         creatorPhone: '+91 87654 32109',
+        creatorEmail: 'vikram@helpriderss.com',
         title: 'Monsoon Ghat Ride to Srisailam Dam',
         route: 'Secunderabad ➔ Nallamala Forest ➔ Srisailam',
         date: '2026-06-03',
@@ -76,12 +122,14 @@ export default function LetsRide() {
         bikeType: '150cc+ Adventure/Sports',
         description: 'Scenic highway ride through Nallamala forest reserve. Please wear full safety gears. Rain coats are mandatory.',
         joinedCount: 8,
+        maxSlots: 120,
         joinRequests: []
       },
       {
         id: 'social-3',
         creator: 'You (Host)',
         creatorPhone: '+91 99009 90099',
+        creatorEmail: 'admin@helpriderss.com', // Let's seed as admin so admin is host
         title: 'Bikers Breakfast Run to Vikarabad',
         route: 'Gachibowli ➔ Vikarabad (Ananthagiri Hills)',
         date: '2026-06-05',
@@ -90,6 +138,7 @@ export default function LetsRide() {
         bikeType: 'All Bikes Welcome',
         description: 'Sunday morning breakfast run to Ananthagiri Hills. Short 75 KM highway run. Join up for a quick tea!',
         joinedCount: 2,
+        maxSlots: 120,
         joinRequests: [
           { id: 'req-3', name: 'Kiran Goud', bikeModel: 'Pulsar N250', phone: '+91 70123 45678', age: '25', crewType: 'Solo', status: 'Pending' },
           { id: 'req-4', name: 'Manish Reddy', bikeModel: 'KTM Duke 390', phone: '+91 90123 45678', age: '28', crewType: 'Solo', status: 'Pending' }
@@ -121,10 +170,13 @@ export default function LetsRide() {
   // Submit Post a Ride
   const handlePostSubmit = (e) => {
     e.preventDefault();
-    if (!newRide.title || !newRide.route || !newRide.date || !newRide.time) {
+    if (!newRide.title || !newRide.startPoint || !newRide.destination || !newRide.date || !newRide.time) {
       showToast('⚠️ Please fill out all required details.');
       return;
     }
+
+    const routeStr = `${newRide.startPoint} ➔ ${newRide.destination}`;
+    const formattedTime = formatTime12hr(newRide.time);
 
     // Parse selected date and time to verify it's not in the past
     const isPastDateTime = (dateStr, timeStr) => {
@@ -171,36 +223,86 @@ export default function LetsRide() {
       return selectedDateTime < now;
     };
 
-    if (isPastDateTime(newRide.date, newRide.time)) {
+    if (isPastDateTime(newRide.date, formattedTime)) {
       showToast('⚠️ Cannot select a past date or time.');
       return;
     }
 
-    const createdRide = {
-      id: 'social-' + Date.now(),
-      creator: 'You (Host)',
-      creatorPhone: '+91 99009 90099',
-      ...newRide,
-      joinedCount: 1,
-      joinRequests: []
-    };
+    if (editingSocialRide) {
+      // Edit Mode
+      const updated = rides.map(r => {
+        if (r.id === editingSocialRide.id) {
+          return {
+            ...r,
+            title: newRide.title,
+            route: routeStr,
+            date: newRide.date,
+            time: formattedTime,
+            distance: newRide.distance,
+            bikeType: newRide.bikeType,
+            description: newRide.description,
+            maxSlots: newRide.maxSlots ? parseInt(newRide.maxSlots, 10) : 120
+          };
+        }
+        return r;
+      });
+      saveRidesToStorage(updated);
+      setEditingSocialRide(null);
+      showToast('✏️ Ride post updated successfully!');
+    } else {
+      // Create Mode
+      const createdRide = {
+        id: 'social-' + Date.now(),
+        creator: user ? (user.displayName || user.email.split('@')[0]) : 'You (Host)',
+        creatorPhone: user ? (user.phone || '+91 99009 90099') : '+91 99009 90099',
+        creatorEmail: user ? user.email : '',
+        title: newRide.title,
+        route: routeStr,
+        date: newRide.date,
+        time: formattedTime,
+        distance: newRide.distance,
+        bikeType: newRide.bikeType,
+        description: newRide.description,
+        maxSlots: newRide.maxSlots ? parseInt(newRide.maxSlots, 10) : 120,
+        joinedCount: 1,
+        joinRequests: []
+      };
+      const updated = [createdRide, ...rides];
+      saveRidesToStorage(updated);
+      showToast('🏍️ Ride posted successfully to community feed!');
+    }
 
-    const updated = [createdRide, ...rides];
-    saveRidesToStorage(updated);
     setShowPostModal(false);
     
     // Reset Form
     setNewRide({
       title: '',
-      route: '',
+      startPoint: '',
+      destination: '',
       date: '',
       time: '',
       distance: '',
       bikeType: 'All Bikes Welcome',
-      description: ''
+      description: '',
+      maxSlots: 120
     });
+  };
 
-    showToast('🏍️ Ride posted successfully to community feed!');
+  const handleEditClick = (ride) => {
+    setEditingSocialRide(ride);
+    const routeParts = ride.route ? ride.route.split(' ➔ ') : ['', ''];
+    setNewRide({
+      title: ride.title || '',
+      startPoint: routeParts[0] || '',
+      destination: routeParts[1] || '',
+      date: ride.date || '',
+      time: convert12hrTo24hr(ride.time) || '',
+      distance: ride.distance || '',
+      bikeType: ride.bikeType || 'All Bikes Welcome',
+      description: ride.description || '',
+      maxSlots: ride.maxSlots || 120
+    });
+    setShowPostModal(true);
   };
 
   // Trigger Safety Modal before Join Submission
@@ -215,6 +317,13 @@ export default function LetsRide() {
       showToast('⚠️ Please fill out all details correctly.');
       return;
     }
+
+    const ageVal = parseInt(joinForm.age, 10);
+    if (isNaN(ageVal) || ageVal < 18) {
+      showToast('⚠️ Sorry, you must be 18 years or older to join a ride.');
+      return;
+    }
+
     // Show safety popup warning first
     setShowSafetyModal(true);
   };
@@ -352,180 +461,201 @@ export default function LetsRide() {
             No rides posted yet. Be the first to post a ride!
           </div>
         ) : (
-          rides.map(ride => (
-            <div key={ride.id} className="glass-panel animate-fade-in" style={{ padding: '18px', background: 'linear-gradient(135deg, rgba(28,28,36,0.5) 0%, rgba(18,18,22,0.85) 100%)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                <span style={{ fontSize: '10px', color: 'var(--primary)', background: 'rgba(255,85,0,0.1)', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
-                  Posted by {ride.creator}
-                </span>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Calendar size={13} /> {ride.date}
-                </span>
-              </div>
-
-              <h4 style={{ fontSize: '16px', color: 'white', fontWeight: 'bold', marginBottom: '6px' }}>{ride.title}</h4>
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
-                <MapPin size={13} color="var(--primary)" /> {ride.route}
-              </div>
-
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.4', marginBottom: '14px' }}>
-                {ride.description}
-              </p>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '10px', background: 'rgba(0,0,0,0.15)', borderRadius: '10px', fontSize: '11px', marginBottom: '14px' }}>
-                <div>
-                  <span style={{ color: 'var(--text-muted)' }}>Distance</span>
-                  <div style={{ color: 'white', fontWeight: 'bold' }}>{ride.distance || 'N/A'}</div>
+          rides.map(ride => {
+            const isOwner = user && (ride.creatorEmail === user.email || (ride.creator === 'You (Host)' && !ride.creatorEmail));
+            return (
+              <div key={ride.id} className="glass-panel animate-fade-in" style={{ padding: '18px', background: 'linear-gradient(135deg, rgba(28,28,36,0.5) 0%, rgba(18,18,22,0.85) 100%)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--primary)', background: 'rgba(255,85,0,0.1)', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
+                    Posted by {ride.creator}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Calendar size={13} /> {ride.date}
+                  </span>
                 </div>
-                <div>
-                  <span style={{ color: 'var(--text-muted)' }}>Bike Class</span>
-                  <div style={{ color: 'white', fontWeight: 'bold' }}>{ride.bikeType}</div>
+
+                <h4 style={{ fontSize: '16px', color: 'white', fontWeight: 'bold', marginBottom: '6px' }}>{ride.title}</h4>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                  <MapPin size={13} color="var(--primary)" /> {ride.route}
                 </div>
-                <div style={{ marginTop: '4px' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Start Time</span>
-                  <div style={{ color: 'white', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                    <Clock size={10} /> {ride.time}
+
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.4', marginBottom: '14px' }}>
+                  {ride.description}
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '10px', background: 'rgba(0,0,0,0.15)', borderRadius: '10px', fontSize: '11px', marginBottom: '14px' }}>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Distance</span>
+                    <div style={{ color: 'white', fontWeight: 'bold' }}>{ride.distance || 'N/A'}</div>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Bike Class</span>
+                    <div style={{ color: 'white', fontWeight: 'bold' }}>{ride.bikeType}</div>
+                  </div>
+                  <div style={{ marginTop: '4px' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Start Time</span>
+                    <div style={{ color: 'white', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <Clock size={10} /> {ride.time}
+                    </div>
+                  </div>
+                  <div style={{ marginTop: '4px' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Joined / Slots</span>
+                    <div style={{ color: 'var(--secondary)', fontWeight: 'bold' }}>{ride.joinedCount} / {ride.maxSlots || 120} Bikers</div>
                   </div>
                 </div>
-                <div style={{ marginTop: '4px' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Joined Biker Crew</span>
-                  <div style={{ color: 'var(--secondary)', fontWeight: 'bold' }}>{ride.joinedCount} Bikers</div>
-                </div>
-              </div>
 
-              {/* Creator dashboard view for join requests */}
-              {ride.creator === 'You (Host)' && (
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', marginTop: '12px' }}>
-                  <h5 style={{ fontSize: '12px', color: 'white', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                    👥 Join Requests ({ride.joinRequests ? ride.joinRequests.length : 0})
-                  </h5>
-                  {(!ride.joinRequests || ride.joinRequests.length === 0) ? (
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No requests to join yet.</div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {ride.joinRequests.map((req, rIdx) => (
-                        <div key={rIdx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', padding: '12px', borderRadius: '10px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', fontWeight: 'bold' }}>
-                            <span>👤 {req.name} (Age: {req.age})</span>
-                            <span style={{ color: 'var(--secondary)' }}>{req.crewType}</span>
-                          </div>
-                          <div style={{ color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>🏍️ {req.bikeModel}</span>
-                            <span>Status: <strong style={{ 
-                              color: req.status === 'Accepted' ? '#00e676' : req.status === 'Declined' ? '#ff1744' : 'var(--primary)'
-                            }}>{req.status || 'Pending'}</strong></span>
-                          </div>
-                          
-                          {/* If accepted, show contact number */}
-                          {req.status === 'Accepted' && (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0, 230, 118, 0.05)', padding: '6px 8px', borderRadius: '6px', marginTop: '4px' }}>
-                              <span style={{ color: 'var(--text-secondary)' }}>📞 {req.phone}</span>
-                              <a href={`tel:${req.phone}`} style={{ color: '#00e676', display: 'flex', alignItems: 'center', gap: '3px', textDecoration: 'none', fontWeight: 'bold' }}>
-                                <Phone size={10} /> Call Now
-                              </a>
-                            </div>
-                          )}
-
-                          {/* Action buttons if Pending */}
-                          {(req.status === 'Pending' || !req.status) && (
-                            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                              <button 
-                                className="btn-secondary" 
-                                style={{ flex: 1, padding: '4px 8px', fontSize: '10px', borderRadius: '6px', background: 'rgba(255, 23, 68, 0.1)', borderColor: 'rgba(255, 23, 68, 0.3)', color: '#ff1744' }}
-                                onClick={() => handleRequestAction(ride.id, req.id, 'decline')}
-                              >
-                                ❌ Decline
-                              </button>
-                              <button 
-                                className="btn-primary" 
-                                style={{ flex: 1.5, padding: '4px 8px', fontSize: '10px', borderRadius: '6px', background: 'linear-gradient(135deg, #00e676 0%, #00b0ff 100%)', border: 'none', color: 'white' }}
-                                onClick={() => handleRequestAction(ride.id, req.id, 'accept')}
-                              >
-                                ✅ Accept
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                {/* Creator dashboard view for join requests */}
+                {isOwner && (
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', marginTop: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <h5 style={{ fontSize: '12px', color: 'white', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        👥 Join Requests ({ride.joinRequests ? ride.joinRequests.length : 0})
+                      </h5>
+                      <button 
+                        className="btn-secondary" 
+                        style={{ padding: '3px 8px', fontSize: '10px', borderRadius: '6px', background: 'rgba(255,85,0,0.1)', borderColor: 'rgba(255,85,0,0.2)', color: 'var(--primary)' }}
+                        onClick={() => handleEditClick(ride)}
+                      >
+                        ✏️ Edit Post
+                      </button>
                     </div>
-                  )}
-                </div>
-              )}
+                    {(!ride.joinRequests || ride.joinRequests.length === 0) ? (
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No requests to join yet.</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {ride.joinRequests.map((req, rIdx) => (
+                          <div key={rIdx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', padding: '12px', borderRadius: '10px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', fontWeight: 'bold' }}>
+                              <span>👤 {req.name} (Age: {req.age})</span>
+                              <span style={{ color: 'var(--secondary)' }}>{req.crewType}</span>
+                            </div>
+                            <div style={{ color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span>🏍️ {req.bikeModel}</span>
+                              <span>Status: <strong style={{ 
+                                color: req.status === 'Accepted' ? '#00e676' : req.status === 'Declined' ? '#ff1744' : 'var(--primary)'
+                              }}>{req.status || 'Pending'}</strong></span>
+                            </div>
+                            
+                            {/* If accepted, show contact number */}
+                            {req.status === 'Accepted' && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0, 230, 118, 0.05)', padding: '6px 8px', borderRadius: '6px', marginTop: '4px' }}>
+                                <span style={{ color: 'var(--text-secondary)' }}>📞 {req.phone}</span>
+                                <a href={`tel:${req.phone}`} style={{ color: '#00e676', display: 'flex', alignItems: 'center', gap: '3px', textDecoration: 'none', fontWeight: 'bold' }}>
+                                  <Phone size={10} /> Call Now
+                                </a>
+                              </div>
+                            )}
 
-              {/* Join Action button / Status for other users */}
-              {ride.creator !== 'You (Host)' && (() => {
-                const myRequest = ride.joinRequests?.find(req => req.isMe);
-                if (!myRequest) {
+                            {/* Action buttons if Pending */}
+                            {(req.status === 'Pending' || !req.status) && (
+                              <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                                <button 
+                                  className="btn-secondary" 
+                                  style={{ flex: 1, padding: '4px 8px', fontSize: '10px', borderRadius: '6px', background: 'rgba(255, 23, 68, 0.1)', borderColor: 'rgba(255, 23, 68, 0.3)', color: '#ff1744' }}
+                                  onClick={() => handleRequestAction(ride.id, req.id, 'decline')}
+                                >
+                                  ❌ Decline
+                                </button>
+                                <button 
+                                  className="btn-primary" 
+                                  style={{ flex: 1.5, padding: '4px 8px', fontSize: '10px', borderRadius: '6px', background: 'linear-gradient(135deg, #00e676 0%, #00b0ff 100%)', border: 'none', color: 'white' }}
+                                  onClick={() => handleRequestAction(ride.id, req.id, 'accept')}
+                                >
+                                  ✅ Accept
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Join Action button / Status for other users */}
+                {!isOwner && (() => {
+                  const myRequest = ride.joinRequests?.find(req => req.isMe);
+                  if (!myRequest) {
+                    const isFull = ride.joinedCount >= (ride.maxSlots || 120);
+                    return (
+                      <button 
+                        className="btn-secondary" 
+                        disabled={isFull}
+                        style={{ 
+                          width: '100%', 
+                          fontSize: '12px', 
+                          padding: '10px 14px', 
+                          borderRadius: '10px', 
+                          background: isFull ? 'rgba(255,255,255,0.05)' : 'rgba(255,85,0,0.08)', 
+                          borderColor: isFull ? 'rgba(255,255,255,0.1)' : 'rgba(255,85,0,0.2)',
+                          color: isFull ? 'var(--text-muted)' : 'var(--primary)'
+                        }}
+                        onClick={() => handleJoinClick(ride)}
+                      >
+                        {isFull ? 'Ride Full (Max Slots Reached)' : 'Join Biker Crew'}
+                      </button>
+                    );
+                  }
+
                   return (
-                    <button 
-                      className="btn-secondary" 
-                      style={{ width: '100%', fontSize: '12px', padding: '10px 14px', borderRadius: '10px', background: 'rgba(255,85,0,0.08)', borderColor: 'rgba(255,85,0,0.2)' }}
-                      onClick={() => handleJoinClick(ride)}
-                    >
-                      Join Biker Crew
-                    </button>
-                  );
-                }
-
-                return (
-                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Your request status:</span>
-                      <span style={{ 
-                        fontSize: '11px', 
-                        fontWeight: 'bold', 
-                        padding: '2px 8px', 
-                        borderRadius: '12px',
-                        background: myRequest.status === 'Accepted' ? 'rgba(0, 230, 118, 0.1)' : myRequest.status === 'Declined' ? 'rgba(255, 23, 68, 0.1)' : 'rgba(255, 170, 0, 0.1)',
-                        color: myRequest.status === 'Accepted' ? '#00e676' : myRequest.status === 'Declined' ? '#ff1744' : '#ffaa00'
-                      }}>
-                        {myRequest.status === 'Accepted' ? 'Request Approved ✅' : myRequest.status === 'Declined' ? 'Request Declined ❌' : '⏳ Pending Approval'}
-                      </span>
-                    </div>
-
-                    <div style={{ background: 'rgba(0, 0, 0, 0.2)', padding: '10px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Host Contact Info:</span>
-                        {myRequest.status === 'Accepted' ? (
-                          <a 
-                            href={`tel:${ride.creatorPhone}`} 
-                            style={{ color: 'var(--primary)', fontWeight: 'bold', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
-                          >
-                            <Phone size={11} /> {ride.creatorPhone}
-                          </a>
-                        ) : myRequest.status === 'Declined' ? (
-                          <span style={{ color: 'var(--text-muted)' }}>🔒 Hidden (Declined)</span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)' }}>🔒 Hidden until accepted</span>
-                        )}
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Your request status:</span>
+                        <span style={{ 
+                          fontSize: '11px', 
+                          fontWeight: 'bold', 
+                          padding: '2px 8px', 
+                          borderRadius: '12px',
+                          background: myRequest.status === 'Accepted' ? 'rgba(0, 230, 118, 0.1)' : myRequest.status === 'Declined' ? 'rgba(255, 23, 68, 0.1)' : 'rgba(255, 170, 0, 0.1)',
+                          color: myRequest.status === 'Accepted' ? '#00e676' : myRequest.status === 'Declined' ? '#ff1744' : '#ffaa00'
+                        }}>
+                          {myRequest.status === 'Accepted' ? 'Request Approved ✅' : myRequest.status === 'Declined' ? 'Request Declined ❌' : '⏳ Pending Approval'}
+                        </span>
                       </div>
 
-                      {myRequest.status === 'Pending' && (
-                        <button 
-                          className="btn-secondary" 
-                          style={{ 
-                            marginTop: '4px',
-                            padding: '6px 10px', 
-                            fontSize: '10px', 
-                            borderRadius: '6px', 
-                            background: 'rgba(0, 176, 255, 0.08)', 
-                            borderColor: 'rgba(0, 176, 255, 0.2)', 
-                            color: '#00b0ff',
-                            width: '100%'
-                          }}
-                          onClick={() => handleRequestAction(ride.id, myRequest.id, 'accept')}
-                        >
-                          ⚡ Simulate Host Approval
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
+                      <div style={{ background: 'rgba(0, 0, 0, 0.2)', padding: '10px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Host Contact Info:</span>
+                          {myRequest.status === 'Accepted' ? (
+                            <a 
+                              href={`tel:${ride.creatorPhone}`} 
+                              style={{ color: 'var(--primary)', fontWeight: 'bold', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              <Phone size={11} /> {ride.creatorPhone}
+                            </a>
+                          ) : myRequest.status === 'Declined' ? (
+                            <span style={{ color: 'var(--text-muted)' }}>🔒 Hidden (Declined)</span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>🔒 Hidden until accepted</span>
+                          )}
+                        </div>
 
-            </div>
-          ))
+                        {myRequest.status === 'Pending' && (
+                          <button 
+                            className="btn-secondary" 
+                            style={{ 
+                              marginTop: '4px',
+                              padding: '6px 10px', 
+                              fontSize: '10px', 
+                              borderRadius: '6px', 
+                              background: 'rgba(0, 176, 255, 0.08)', 
+                              borderColor: 'rgba(0, 176, 255, 0.2)', 
+                              color: '#00b0ff',
+                              width: '100%'
+                            }}
+                            onClick={() => handleRequestAction(ride.id, myRequest.id, 'accept')}
+                          >
+                            ⚡ Simulate Host Approval
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            );
+          })
         )}
       </div>
 
@@ -535,9 +665,26 @@ export default function LetsRide() {
           <div className="glass-panel animate-zoom-in" style={{ width: '90%', maxWidth: '400px', background: '#121217', maxHeight: '90vh', overflowY: 'auto', padding: '24px 20px', borderRadius: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ fontSize: '18px', color: 'white', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <PlusCircle size={20} color="var(--primary)" /> Post New Ride
+                <PlusCircle size={20} color="var(--primary)" /> {editingSocialRide ? 'Edit Ride Post' : 'Post New Ride'}
               </h3>
-              <button onClick={() => setShowPostModal(false)} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}>
+              <button 
+                onClick={() => {
+                  setShowPostModal(false);
+                  setEditingSocialRide(null);
+                  setNewRide({
+                    title: '',
+                    startPoint: '',
+                    destination: '',
+                    date: '',
+                    time: '',
+                    distance: '',
+                    bikeType: 'All Bikes Welcome',
+                    description: '',
+                    maxSlots: 120
+                  });
+                }} 
+                style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}
+              >
                 <X size={18} />
               </button>
             </div>
@@ -555,16 +702,29 @@ export default function LetsRide() {
                 />
               </div>
 
-              <div>
-                <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Route Details *</label>
-                <input 
-                  type="text" 
-                  required
-                  placeholder="e.g. Hyderabad Outer Ring Road ➔ Narsapur"
-                  value={newRide.route}
-                  onChange={(e) => handlePostInputChange('route', e.target.value)}
-                  style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div>
+                  <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Start Point *</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="e.g. Gachibowli"
+                    value={newRide.startPoint}
+                    onChange={(e) => handlePostInputChange('startPoint', e.target.value)}
+                    style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Destination *</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="e.g. Vikarabad"
+                    value={newRide.destination}
+                    onChange={(e) => handlePostInputChange('destination', e.target.value)}
+                    style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
+                  />
+                </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
@@ -582,12 +742,11 @@ export default function LetsRide() {
                 <div>
                   <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Time *</label>
                   <input 
-                    type="text" 
+                    type="time" 
                     required
-                    placeholder="e.g. 06:00 AM"
                     value={newRide.time}
                     onChange={(e) => handlePostInputChange('time', e.target.value)}
-                    style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
+                    style={{ width: '100%', fontSize: '13px', background: '#1c1c24', color: 'white', padding: '10px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}
                   />
                 </div>
               </div>
@@ -615,6 +774,27 @@ export default function LetsRide() {
                 </div>
               </div>
 
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div>
+                  <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Slots Limit (Max 120) *</label>
+                  <input 
+                    type="number" 
+                    required
+                    min="1"
+                    max="120"
+                    placeholder="e.g. 120"
+                    value={newRide.maxSlots}
+                    onChange={(e) => {
+                      let val = parseInt(e.target.value, 10);
+                      if (val > 120) val = 120;
+                      if (val < 1) val = 1;
+                      handlePostInputChange('maxSlots', isNaN(val) ? '' : val);
+                    }}
+                    style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
+                  />
+                </div>
+              </div>
+
               <div>
                 <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Description & Meetup Spot</label>
                 <textarea 
@@ -627,7 +807,7 @@ export default function LetsRide() {
               </div>
 
               <button className="btn-primary" type="submit" style={{ padding: '12px', fontSize: '13px', marginTop: '10px', borderRadius: '12px' }}>
-                Post Ride Feed
+                {editingSocialRide ? 'Update Ride Feed' : 'Post Ride Feed'}
               </button>
             </form>
           </div>
@@ -662,17 +842,14 @@ export default function LetsRide() {
 
               <div>
                 <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Your Bike Model</label>
-                <select 
+                <input 
+                  type="text" 
+                  required
+                  placeholder="e.g. Royal Enfield Himalayan 450"
                   value={joinForm.bikeModel}
                   onChange={(e) => handleJoinInputChange('bikeModel', e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px', fontSize: '13px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}
-                  required
-                >
-                  <option value="">Select your bike</option>
-                  {BIKES_DATABASE.map((b, idx) => (
-                    <option key={idx} value={b.name}>{b.name}</option>
-                  ))}
-                </select>
+                  style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
+                />
               </div>
 
               <div>

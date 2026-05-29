@@ -276,29 +276,6 @@ export default function MyRides({ rides, onOpenReplay, onEditRide, onDeleteRide,
                           ✏️ Edit
                         </button>
                       )}
-                      {onDeleteRide && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setConfirmDeleteRideId(ride.id);
-                          }}
-                          style={{
-                            padding: '4px 10px',
-                            fontSize: '10px',
-                            borderRadius: '6px',
-                            background: 'rgba(255, 34, 51, 0.1)',
-                            border: '1px solid rgba(255, 34, 51, 0.25)',
-                            color: 'var(--accent)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '3px',
-                            fontWeight: '600'
-                          }}
-                        >
-                          🗑️ Delete
-                        </button>
-                      )}
                     </div>
                   )}
                 </div>
@@ -418,38 +395,7 @@ export default function MyRides({ rides, onOpenReplay, onEditRide, onDeleteRide,
           })
         )}
       </div>
-      
-      {/* IN-APP DELETE CONFIRMATION MODAL */}
-      {confirmDeleteRideId && (
-        <div className="bottom-sheet-overlay animate-fade-in" style={{ zIndex: 150, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="glass-panel animate-zoom-in" style={{ width: '85%', maxWidth: '320px', padding: '24px 20px', background: '#121217', borderColor: 'var(--accent)', textAlign: 'center', boxShadow: '0 8px 32px rgba(255,34,51,0.25)', borderRadius: '20px' }}>
-            <Trash2 size={40} color="var(--accent)" style={{ margin: '0 auto 12px' }} />
-            <h3 style={{ fontSize: '16px', color: 'white', marginBottom: '8px', fontFamily: 'var(--font-display)' }}>Cancel & Delete Ride?</h3>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.4', marginBottom: '18px' }}>
-              Are you sure you want to delete this itinerary? This action cannot be undone.
-            </p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button 
-                className="btn-secondary" 
-                style={{ flex: 1, padding: '10px', fontSize: '12px' }} 
-                onClick={() => setConfirmDeleteRideId(null)}
-              >
-                Go Back
-              </button>
-              <button 
-                className="btn-primary" 
-                style={{ flex: 1.5, padding: '10px', fontSize: '12px', background: 'linear-gradient(135deg, var(--accent) 0%, #d32f2f 100%)', border: 'none', color: 'white' }} 
-                onClick={() => {
-                  onDeleteRide(confirmDeleteRideId);
-                  setConfirmDeleteRideId(null);
-                }}
-              >
-                Confirm Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
     </div>
   );

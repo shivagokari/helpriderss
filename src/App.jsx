@@ -1,19 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { 
   Home, PlusCircle, History, Map, User, Users, X, Info, 
   Download, Navigation, CheckCircle, ShieldAlert, Sparkles, Bell, Phone
 } from 'lucide-react';
 import LoginScreen from './components/LoginScreen';
 import HomeDashboard from './components/HomeDashboard';
-import NewRideWizard from './components/NewRideWizard';
-import MyRides from './components/MyRides';
-import LetsRide from './components/LetsRide';
-import Profile from './components/Profile';
 import { generateGoogleMapsLink } from './utils/geo';
 import { supabase } from './utils/supabase';
 
+// Lazily load heavier sub-screens and modals for code splitting and faster initial load
+const NewRideWizard = lazy(() => import('./components/NewRideWizard'));
+const MyRides = lazy(() => import('./components/MyRides'));
+const LetsRide = lazy(() => import('./components/LetsRide'));
+const Profile = lazy(() => import('./components/Profile'));
+
 export default function App() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('helpriders_session') || sessionStorage.getItem('helpriders_session');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.warn("Failed to parse saved session", e);
+      }
+    }
+    return null;
+  });
   const [activeTab, setActiveTab] = useState('home');
   const [newRideOpen, setNewRideOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -165,6 +177,22 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('helpriders_custom_rides', JSON.stringify(customRides));
   }, [customRides]);
+
+  // Silently check and verify the Supabase session in the background
+  useEffect(() => {
+    if (user) {
+      supabase.auth.getSession()
+        .then(({ data: { session } }) => {
+          if (!session) {
+            console.log('[Auth] Cached session expired or invalid in Supabase');
+            handleLogout();
+          }
+        })
+        .catch(err => {
+          console.warn('[Auth] Background session verification failed (possibly offline):', err.message);
+        });
+    }
+  }, []);
 
   // Check PWA Install availability
   useEffect(() => {
@@ -346,36 +374,45 @@ export default function App() {
 
       {/* Main Screen Router Box */}
       <div style={{ flex: 1, position: 'relative', height: 'calc(100% - 72px)', overflow: 'hidden' }}>
-        {activeTab === 'home' && (
-          <HomeDashboard 
-            user={user} 
-            onTabChange={setActiveTab} 
-            onOpenDetails={setBriefingSheetRide} 
-            openWizard={() => setNewRideOpen(true)}
-          />
-        )}
-        
-        {activeTab === 'my-rides' && (
-          <MyRides 
-            rides={customRides} 
-            onOpenReplay={(ride) => {
-              setReplaySheetRide(ride);
-              setIsReplaying(true);
-            }} 
-            onEditRide={(ride) => {
-              setEditingRide(ride);
-              setNewRideOpen(true);
-            }}
-            onDeleteRide={handleDeleteRide}
-            onToggleFavoriteRide={handleToggleFavorite}
-          />
-        )}
-        
-        {activeTab === 'lets-ride' && <LetsRide />}
-        
-        {activeTab === 'profile' && (
-          <Profile user={user} onLogout={handleLogout} rides={customRides} />
-        )}
+        <Suspense fallback={
+          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0d12' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ width: '36px', height: '36px', border: '3px solid transparent', borderTopColor: '#ff5500', borderRadius: '50%', animation: 'dash 1s linear infinite', margin: '0 auto 12px' }} />
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Loading crew deck...</p>
+            </div>
+          </div>
+        }>
+          {activeTab === 'home' && (
+            <HomeDashboard 
+              user={user} 
+              onTabChange={setActiveTab} 
+              onOpenDetails={setBriefingSheetRide} 
+              openWizard={() => setNewRideOpen(true)}
+            />
+          )}
+          
+          {activeTab === 'my-rides' && (
+            <MyRides 
+              rides={customRides} 
+              onOpenReplay={(ride) => {
+                setReplaySheetRide(ride);
+                setIsReplaying(true);
+              }} 
+              onEditRide={(ride) => {
+                setEditingRide(ride);
+                setNewRideOpen(true);
+              }}
+              onDeleteRide={handleDeleteRide}
+              onToggleFavoriteRide={handleToggleFavorite}
+            />
+          )}
+          
+          {activeTab === 'lets-ride' && <LetsRide user={user} />}
+          
+          {activeTab === 'profile' && (
+            <Profile user={user} onLogout={handleLogout} rides={customRides} />
+          )}
+        </Suspense>
       </div>
 
       {/* Floating Action Button (Quick New Ride Wizard Trigger) */}
@@ -457,14 +494,23 @@ export default function App() {
 
       {/* FULL SCREEN MODAL: New Ride Wizard */}
       {newRideOpen && (
-        <NewRideWizard 
-          onClose={() => {
-            setNewRideOpen(false);
-            setEditingRide(null);
-          }} 
-          onSaveRide={handleSaveRide} 
-          editingRide={editingRide}
-        />
+        <Suspense fallback={
+          <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0d12' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ width: '36px', height: '36px', border: '3px solid transparent', borderTopColor: '#ff5500', borderRadius: '50%', animation: 'dash 1s linear infinite', margin: '0 auto 12px' }} />
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Opening planner...</p>
+            </div>
+          </div>
+        }>
+          <NewRideWizard 
+            onClose={() => {
+              setNewRideOpen(false);
+              setEditingRide(null);
+            }} 
+            onSaveRide={handleSaveRide} 
+            editingRide={editingRide}
+          />
+        </Suspense>
       )}
 
       {/* SLIDE-UP SHEET: Upcoming Ride Briefing */}
