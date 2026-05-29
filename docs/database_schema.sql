@@ -1,0 +1,133 @@
+-- Helpriderss Database Schema Configuration
+-- Paste and run this script in your Supabase SQL Editor (https://supabase.com)
+
+-- 1. Create Profiles Table (linked to Supabase Auth users)
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  mobile TEXT NOT NULL,
+  name TEXT DEFAULT '',
+  avatar_url TEXT DEFAULT '',
+  level TEXT DEFAULT 'Rookie Rider',
+  unique_id TEXT UNIQUE,
+  username TEXT,
+  referred_by TEXT,
+  active_bike TEXT DEFAULT '',
+  garage JSONB DEFAULT '[]'::jsonb,
+  emergency_contacts JSONB DEFAULT '[]'::jsonb,
+  joined_date TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Enable Row Level Security (RLS) on Profiles
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public.profiles;
+CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
+CREATE POLICY "Users can update their own profile" ON public.profiles
+  FOR UPDATE USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
+CREATE POLICY "Users can insert their own profile" ON public.profiles
+  FOR INSERT WITH CHECK (auth.uid() = id);
+
+
+-- 2. Create Rides Table (to store biker itineraries)
+CREATE TABLE IF NOT EXISTS public.rides (
+  id TEXT PRIMARY KEY,
+  user_id UUID REFERENCES auth.users ON DELETE SET NULL,
+  creator TEXT NOT NULL DEFAULT 'You (Host)',
+  creator_phone TEXT DEFAULT '',
+  title TEXT NOT NULL,
+  route TEXT NOT NULL,
+  date TEXT NOT NULL,
+  time TEXT NOT NULL,
+  distance TEXT DEFAULT '0 KM',
+  bike_type TEXT DEFAULT 'All Bikes Welcome',
+  description TEXT DEFAULT '',
+  joined_count INTEGER DEFAULT 1,
+  join_requests JSONB DEFAULT '[]'::jsonb,
+  is_favorite BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Enable RLS on Rides
+ALTER TABLE public.rides ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Rides are viewable by everyone" ON public.rides;
+CREATE POLICY "Rides are viewable by everyone" ON public.rides
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users can insert rides" ON public.rides;
+CREATE POLICY "Authenticated users can insert rides" ON public.rides
+  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Users can update or delete their own rides" ON public.rides;
+CREATE POLICY "Users can update or delete their own rides" ON public.rides
+  FOR ALL USING (auth.uid() = user_id);
+
+
+-- 3. Create Dev Contacts Table (for Contact Developer form submissions)
+CREATE TABLE IF NOT EXISTS public.dev_contacts (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  mobile TEXT NOT NULL,
+  email TEXT,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  is_read BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Enable RLS on dev_contacts
+ALTER TABLE public.dev_contacts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "insert_policy" ON public.dev_contacts;
+DROP POLICY IF EXISTS "select_policy" ON public.dev_contacts;
+DROP POLICY IF EXISTS "update_policy" ON public.dev_contacts;
+DROP POLICY IF EXISTS "delete_policy" ON public.dev_contacts;
+
+CREATE POLICY "insert_policy" ON public.dev_contacts FOR INSERT WITH CHECK (true);
+CREATE POLICY "select_policy" ON public.dev_contacts FOR SELECT USING (true);
+CREATE POLICY "update_policy" ON public.dev_contacts FOR UPDATE USING (true);
+CREATE POLICY "delete_policy" ON public.dev_contacts FOR DELETE USING (true);
+
+
+-- 4. Create Friend Requests Table
+CREATE TABLE IF NOT EXISTS public.friend_requests (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  from_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  to_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  status TEXT DEFAULT 'pending', -- 'pending' | 'accepted' | 'blocked'
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(from_id, to_id)
+);
+
+-- Enable RLS on friend_requests
+ALTER TABLE public.friend_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can manage their requests" ON public.friend_requests;
+CREATE POLICY "Users can manage their requests" ON public.friend_requests
+  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+
+-- 5. Create Messages (Chat) Table
+CREATE TABLE IF NOT EXISTS public.messages (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  sender_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  receiver_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Enable RLS on messages
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can read their own messages" ON public.messages;
+CREATE POLICY "Users can read their own messages" ON public.messages
+  FOR SELECT TO authenticated USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+
+DROP POLICY IF EXISTS "Users can insert messages" ON public.messages;
+CREATE POLICY "Users can insert messages" ON public.messages
+  FOR INSERT TO authenticated WITH CHECK (auth.uid() = sender_id);
