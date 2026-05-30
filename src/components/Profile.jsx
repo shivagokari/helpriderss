@@ -71,6 +71,7 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
   const [newContactPhone, setNewContactPhone] = useState('');
   const [securityPin, setSecurityPin] = useState('');
   const [savingPin, setSavingPin] = useState(false);
+  const [hasSavedPin, setHasSavedPin] = useState(false);
 
   // Fetch all profile details from Supabase on mount
   useEffect(() => {
@@ -89,7 +90,10 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
           setEmergencyContacts(data.emergency_contacts || []);
           setAvatar(data.avatar_url || null);
           if (data.unique_id) setUniqueId(data.unique_id);
-          if (data.security_pin) setSecurityPin(data.security_pin);
+          if (data.security_pin) {
+            setSecurityPin(data.security_pin);
+            setHasSavedPin(true);
+          }
           if (data.garage && data.garage.length > 0) {
             setActiveBike(data.garage[0].name);
           }
@@ -164,6 +168,7 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
 
   const handleSaveSecurityPin = async (e) => {
     e.preventDefault();
+    if (hasSavedPin) return;
     if (!securityPin) {
       showToast('⚠️ Please enter a 4-digit PIN.');
       return;
@@ -180,7 +185,8 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
         .eq('id', user.uid);
       
       if (error) throw error;
-      showToast('🔒 Security Recovery PIN updated successfully!');
+      setHasSavedPin(true);
+      showToast('🔒 Security Recovery PIN locked successfully!');
     } catch (err) {
       showToast('❌ Failed to update PIN: ' + err.message);
     } finally {
@@ -555,6 +561,25 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
       fetchFriendsAndRequests();
     } catch (err) {
       showToast('❌ Failed to unblock: ' + err.message);
+    }
+  };
+
+  const unfriendRider = async (rider) => {
+    try {
+      const { error } = await supabase
+        .from('friend_requests')
+        .delete()
+        .or(`and(from_id.eq.${user.uid},to_id.eq.${rider.uid}),and(from_id.eq.${rider.uid},to_id.eq.${user.uid})`);
+
+      if (error) throw error;
+
+      showToast(`👋 Unfriended ${rider.displayName}.`);
+      fetchFriendsAndRequests();
+      if (activeChatFriend && activeChatFriend.uid === rider.uid) {
+        setActiveChatFriend(null);
+      }
+    } catch (err) {
+      showToast('❌ Failed to unfriend: ' + err.message);
     }
   };
 
@@ -957,6 +982,9 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
                   <button onClick={() => setActiveChatFriend(f)} style={{ background: 'var(--primary)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                     <MessageSquare size={13} color="white" />
                   </button>
+                  <button onClick={() => unfriendRider(f)} title="Unfriend" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                    <Trash2 size={13} />
+                  </button>
                   <button onClick={() => blockRider(f)} title="Block" style={{ background: 'rgba(255,34,51,0.1)', border: '1px solid rgba(255,34,51,0.15)', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--accent)' }}>
                     <Ban size={13} />
                   </button>
@@ -974,7 +1002,10 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
               {blocked.map(b => (
                 <div key={b.unique_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'rgba(255,34,51,0.05)', borderRadius: '8px', border: '1px solid rgba(255,34,51,0.1)' }}>
                   <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{b.displayName} ({b.unique_id})</span>
-                  <button onClick={() => unblockRider(b)} style={{ fontSize: '10px', color: 'var(--success)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Unblock</button>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => unblockRider(b)} style={{ fontSize: '11px', color: 'var(--success)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Unblock</button>
+                    <button onClick={() => unfriendRider(b)} style={{ fontSize: '11px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Delete / Unfriend</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1115,23 +1146,56 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
 
         <form onSubmit={handleSaveSecurityPin} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <input 
-            type="password" 
+            type="text" 
             pattern="[0-9]*"
             inputMode="numeric"
             maxLength={4}
-            placeholder={securityPin ? "•••• (PIN Configured)" : "Enter 4-digit Recovery PIN"} 
+            readOnly={hasSavedPin}
+            placeholder={hasSavedPin ? "PIN Configured" : "Enter 4-digit Recovery PIN"} 
             value={securityPin} 
-            onChange={e => setSecurityPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))} 
-            style={{ ...smallInputStyle, flex: 1, letterSpacing: '4px', textAlign: 'center', fontSize: '14px', fontWeight: 'bold' }} 
+            onChange={e => {
+              if (hasSavedPin) return;
+              setSecurityPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 4));
+            }} 
+            style={{ 
+              ...smallInputStyle, 
+              flex: 1, 
+              letterSpacing: '4px', 
+              textAlign: 'center', 
+              fontSize: '14px', 
+              fontWeight: 'bold',
+              opacity: hasSavedPin ? 0.75 : 1,
+              cursor: hasSavedPin ? 'not-allowed' : 'text'
+            }} 
           />
-          <button 
-            type="submit" 
-            disabled={savingPin}
-            className="btn-primary" 
-            style={{ padding: '10px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', flexShrink: 0 }}
-          >
-            {savingPin ? '...' : 'Save PIN'}
-          </button>
+          {hasSavedPin ? (
+            <span 
+              style={{ 
+                padding: '8px 12px', 
+                background: 'rgba(0,230,118,0.15)', 
+                border: '1px solid rgba(0,230,118,0.3)', 
+                borderRadius: '8px', 
+                fontSize: '12.5px', 
+                color: 'var(--success)', 
+                fontWeight: 'bold', 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: '4px',
+                flexShrink: 0
+              }}
+            >
+              <Check size={14} /> Locked
+            </span>
+          ) : (
+            <button 
+              type="submit" 
+              disabled={savingPin}
+              className="btn-primary" 
+              style={{ padding: '10px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', flexShrink: 0 }}
+            >
+              {savingPin ? '...' : 'Save PIN'}
+            </button>
+          )}
         </form>
       </div>
 

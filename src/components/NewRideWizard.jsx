@@ -1441,6 +1441,7 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                         <MapPin size={16} color="var(--primary)" style={{ position: 'absolute', left: '12px', top: '31px' }} />
                         <input
                           type="text"
+                          className="has-left-icon"
                           placeholder="Type 1+ letters (e.g. J)"
                           value={formData.startLocation}
                           onChange={(e) => handleInputChange('startLocation', e.target.value)}
@@ -1470,6 +1471,7 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                         <MapPin size={16} color="var(--secondary)" style={{ position: 'absolute', left: '12px', top: '31px' }} />
                         <input
                           type="text"
+                          className="has-left-icon"
                           placeholder="Type 1+ letters (e.g. H)"
                           value={formData.destination}
                           onChange={(e) => handleInputChange('destination', e.target.value)}
@@ -1512,6 +1514,7 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                               <MapPin size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '10px', top: '12px' }} />
                               <input
                                 type="text"
+                                className="has-left-icon"
                                 placeholder={`Stop #${idx + 1}`}
                                 value={wp.name}
                                 onChange={(e) => handleWaypointChange(idx, e.target.value)}
@@ -1560,6 +1563,7 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                         <MapPin size={16} color="var(--primary)" style={{ position: 'absolute', left: '12px', top: '31px' }} />
                         <input
                           type="text"
+                          className="has-left-icon"
                           placeholder="Type return starting city"
                           value={returnStartLocation}
                           onChange={(e) => {
@@ -1597,6 +1601,7 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                         <MapPin size={16} color="var(--secondary)" style={{ position: 'absolute', left: '12px', top: '31px' }} />
                         <input
                           type="text"
+                          className="has-left-icon"
                           placeholder="Type return destination"
                           value={returnDestination}
                           onChange={(e) => {
@@ -1647,6 +1652,7 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                               <MapPin size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '10px', top: '12px' }} />
                               <input
                                 type="text"
+                                className="has-left-icon"
                                 placeholder={`Stop #${idx + 1}`}
                                 value={wp.name}
                                 onChange={(e) => handleReturnWaypointChange(idx, e.target.value)}

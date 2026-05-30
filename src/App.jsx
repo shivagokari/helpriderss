@@ -144,6 +144,7 @@ export default function App() {
 
   const handleLogin = (userData) => {
     setUser(userData);
+    setShowInstallBanner(true);
   };
 
   // Load dev contacts from Supabase whenever admin opens notifications or profile tab
@@ -291,34 +292,45 @@ export default function App() {
             zIndex: 95, 
             padding: '12px 14px', 
             display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
+            flexDirection: 'column',
+            gap: '8px',
             borderColor: 'rgba(255, 85, 0, 0.4)',
             background: 'rgba(18, 18, 22, 0.95)'
           }}
         >
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <Download size={18} color="var(--primary)" />
-            <div>
-              <strong style={{ fontSize: '11px', color: 'white', display: 'block' }}>Install Helpriderss</strong>
-              <span style={{ fontSize: '9px', color: 'var(--text-secondary)' }}>Add to Home Screen for offline track logs.</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <Download size={18} color="var(--primary)" />
+              <div>
+                <strong style={{ fontSize: '11.5px', color: 'white', display: 'block' }}>Install Helpriderss App</strong>
+                <span style={{ fontSize: '9.5px', color: 'var(--text-secondary)' }}>Get instant access and offline features.</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              {deferredPrompt ? (
+                <button 
+                  onClick={handleInstallClick}
+                  className="btn-primary" 
+                  style={{ padding: '6px 12px', fontSize: '10px', borderRadius: '6px' }}
+                >
+                  Install
+                </button>
+              ) : (
+                <span style={{ fontSize: '9px', color: 'var(--primary)', fontWeight: 'bold', background: 'rgba(255, 85, 0, 0.1)', padding: '3px 8px', borderRadius: '4px' }}>Manual Setup</span>
+              )}
+              <button 
+                onClick={() => setShowInstallBanner(false)}
+                style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                <X size={16} />
+              </button>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button 
-              onClick={handleInstallClick}
-              className="btn-primary" 
-              style={{ padding: '6px 12px', fontSize: '10px', borderRadius: '6px' }}
-            >
-              Add
-            </button>
-            <button 
-              onClick={() => setShowInstallBanner(false)}
-              style={{ color: 'var(--text-muted)' }}
-            >
-              <X size={16} />
-            </button>
-          </div>
+          {!deferredPrompt && (
+            <div style={{ padding: '6px 8px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.06)', borderRadius: '8px', fontSize: '9.5px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+              💡 <strong>How to Install:</strong> Tap your browser's menu button (<strong style={{ color: 'white' }}>⋮</strong> on Chrome / Android) or Share icon (<strong style={{ color: 'white' }}>⎋</strong> on Safari / iOS) and select <strong>"Add to Home Screen"</strong> or <strong>"Install App"</strong>.
+            </div>
+          )}
         </div>
       )}
 

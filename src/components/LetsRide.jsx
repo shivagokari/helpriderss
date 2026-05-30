@@ -679,8 +679,9 @@ export default function LetsRide({ user }) {
         }
       }
 
-      // 2. Set penalty for the host (7 days from now) in their profile
-      if (user?.uid) {
+      // 2. Set penalty for the host (7 days from now) in their profile (only if the host is cancelling their own ride)
+      const isOwnRide = user && ride.user_id === user.uid;
+      if (isOwnRide) {
         const penaltyDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
         const { error: profileErr } = await supabase
           .from('profiles')
@@ -789,6 +790,7 @@ export default function LetsRide({ user }) {
         ) : (
           rides.map(ride => {
             const isOwner = user && (ride.user_id === user.uid || (ride.creator === 'You (Host)' && !ride.user_id));
+            const isAdmin = user && (user.email === 'admin@helpriderss.com' || user.level === 'System Administrator');
             return (
               <div key={ride.id} className="glass-panel animate-fade-in" style={{ padding: '18px', background: 'linear-gradient(135deg, rgba(28,28,36,0.5) 0%, rgba(18,18,22,0.85) 100%)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
@@ -836,21 +838,29 @@ export default function LetsRide({ user }) {
                   </div>
                 </div>
 
-                {/* Creator dashboard view for join requests */}
-                {isOwner && (
+                {/* Creator dashboard or Admin controls */}
+                {(isOwner || isAdmin) && (
                   <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', marginTop: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                       <h5 style={{ fontSize: '12px', color: 'white', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        👥 Join Requests ({ride.joinRequests ? ride.joinRequests.length : 0})
+                        {isOwner ? (
+                          <>👥 Join Requests ({ride.joinRequests ? ride.joinRequests.length : 0})</>
+                        ) : (
+                          <span style={{ color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <ShieldAlert size={14} /> Admin Controls
+                          </span>
+                        )}
                       </h5>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <button 
-                          className="btn-secondary" 
-                          style={{ padding: '3px 8px', fontSize: '10px', borderRadius: '6px', background: 'rgba(255,85,0,0.1)', borderColor: 'rgba(255,85,0,0.2)', color: 'var(--primary)' }}
-                          onClick={() => handleEditClick(ride)}
-                        >
-                          ✏️ Edit Post
-                        </button>
+                        {isOwner && (
+                          <button 
+                            className="btn-secondary" 
+                            style={{ padding: '3px 8px', fontSize: '10px', borderRadius: '6px', background: 'rgba(255,85,0,0.1)', borderColor: 'rgba(255,85,0,0.2)', color: 'var(--primary)' }}
+                            onClick={() => handleEditClick(ride)}
+                          >
+                            ✏️ Edit Post
+                          </button>
+                        )}
                         <button 
                           className="btn-secondary" 
                           style={{ padding: '3px 8px', fontSize: '10px', borderRadius: '6px', background: 'rgba(255,34,51,0.1)', borderColor: 'rgba(255,34,51,0.2)', color: 'var(--accent)', cursor: 'pointer' }}
@@ -860,55 +870,59 @@ export default function LetsRide({ user }) {
                         </button>
                       </div>
                     </div>
-                    {(!ride.joinRequests || ride.joinRequests.length === 0) ? (
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No requests to join yet.</div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {ride.joinRequests.map((req, rIdx) => (
-                          <div key={rIdx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', padding: '12px', borderRadius: '10px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', fontWeight: 'bold' }}>
-                              <span>👤 {req.name} (Age: {req.age})</span>
-                              <span style={{ color: 'var(--secondary)' }}>{req.crewType}</span>
-                            </div>
-                            <div style={{ color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span>🏍️ {req.bikeModel}</span>
-                              <span>Status: <strong style={{ 
-                                color: req.status === 'Accepted' ? '#00e676' : req.status === 'Declined' ? '#ff1744' : 'var(--primary)'
-                              }}>{req.status || 'Pending'}</strong></span>
-                            </div>
-                            
-                            {/* If accepted, show contact number */}
-                            {req.status === 'Accepted' && (
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0, 230, 118, 0.05)', padding: '6px 8px', borderRadius: '6px', marginTop: '4px' }}>
-                                <span style={{ color: 'var(--text-secondary)' }}>📞 {req.phone}</span>
-                                <a href={`tel:${req.phone}`} style={{ color: '#00e676', display: 'flex', alignItems: 'center', gap: '3px', textDecoration: 'none', fontWeight: 'bold' }}>
-                                  <Phone size={10} /> Call Now
-                                </a>
-                              </div>
-                            )}
+                    {isOwner && (
+                      <>
+                        {(!ride.joinRequests || ride.joinRequests.length === 0) ? (
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No requests to join yet.</div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {ride.joinRequests.map((req, rIdx) => (
+                              <div key={rIdx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', padding: '12px', borderRadius: '10px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', fontWeight: 'bold' }}>
+                                  <span>👤 {req.name} (Age: {req.age})</span>
+                                  <span style={{ color: 'var(--secondary)' }}>{req.crewType}</span>
+                                </div>
+                                <div style={{ color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span>🏍️ {req.bikeModel}</span>
+                                  <span>Status: <strong style={{ 
+                                    color: req.status === 'Accepted' ? '#00e676' : req.status === 'Declined' ? '#ff1744' : 'var(--primary)'
+                                  }}>{req.status || 'Pending'}</strong></span>
+                                </div>
+                                
+                                {/* If accepted, show contact number */}
+                                {req.status === 'Accepted' && (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0, 230, 118, 0.05)', padding: '6px 8px', borderRadius: '6px', marginTop: '4px' }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>📞 {req.phone}</span>
+                                    <a href={`tel:${req.phone}`} style={{ color: '#00e676', display: 'flex', alignItems: 'center', gap: '3px', textDecoration: 'none', fontWeight: 'bold' }}>
+                                      <Phone size={10} /> Call Now
+                                    </a>
+                                  </div>
+                                )}
 
-                            {/* Action buttons if Pending */}
-                            {(req.status === 'Pending' || !req.status) && (
-                              <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                                <button 
-                                  className="btn-secondary" 
-                                  style={{ flex: 1, padding: '4px 8px', fontSize: '10px', borderRadius: '6px', background: 'rgba(255, 23, 68, 0.1)', borderColor: 'rgba(255, 23, 68, 0.3)', color: '#ff1744' }}
-                                  onClick={() => handleRequestAction(ride.id, req.id, 'decline')}
-                                >
-                                  ❌ Decline
-                                </button>
-                                <button 
-                                  className="btn-primary" 
-                                  style={{ flex: 1.5, padding: '4px 8px', fontSize: '10px', borderRadius: '6px', background: 'linear-gradient(135deg, #00e676 0%, #00b0ff 100%)', border: 'none', color: 'white' }}
-                                  onClick={() => handleRequestAction(ride.id, req.id, 'accept')}
-                                >
-                                  ✅ Accept
-                                </button>
+                                {/* Action buttons if Pending */}
+                                {(req.status === 'Pending' || !req.status) && (
+                                  <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                                    <button 
+                                      className="btn-secondary" 
+                                      style={{ flex: 1, padding: '4px 8px', fontSize: '10px', borderRadius: '6px', background: 'rgba(255, 23, 68, 0.1)', borderColor: 'rgba(255, 23, 68, 0.3)', color: '#ff1744' }}
+                                      onClick={() => handleRequestAction(ride.id, req.id, 'decline')}
+                                    >
+                                      ❌ Decline
+                                    </button>
+                                    <button 
+                                      className="btn-primary" 
+                                      style={{ flex: 1.5, padding: '4px 8px', fontSize: '10px', borderRadius: '6px', background: 'linear-gradient(135deg, #00e676 0%, #00b0ff 100%)', border: 'none', color: 'white' }}
+                                      onClick={() => handleRequestAction(ride.id, req.id, 'accept')}
+                                    >
+                                      ✅ Accept
+                                    </button>
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -1049,8 +1063,10 @@ export default function LetsRide({ user }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 <div style={{ position: 'relative' }}>
                   <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Start Point *</label>
+                  <MapPin size={14} style={{ position: 'absolute', left: '10px', bottom: '13px', color: 'var(--text-muted)', zIndex: 2 }} />
                   <input 
                     type="text" 
+                    className="has-left-icon"
                     required
                     placeholder="e.g. Gachibowli"
                     value={newRide.startPoint}
@@ -1080,8 +1096,10 @@ export default function LetsRide({ user }) {
                 </div>
                 <div style={{ position: 'relative' }}>
                   <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Destination *</label>
+                  <MapPin size={14} style={{ position: 'absolute', left: '10px', bottom: '13px', color: 'var(--text-muted)', zIndex: 2 }} />
                   <input 
                     type="text" 
+                    className="has-left-icon"
                     required
                     placeholder="e.g. Vikarabad"
                     value={newRide.destination}
@@ -1113,8 +1131,10 @@ export default function LetsRide({ user }) {
 
               <div style={{ position: 'relative' }}>
                 <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Meeting Point Location *</label>
+                <MapPin size={14} style={{ position: 'absolute', left: '10px', bottom: '13px', color: 'var(--text-muted)', zIndex: 2 }} />
                 <input 
                   type="text" 
+                  className="has-left-icon"
                   required
                   placeholder="e.g. Decathlon Gachibowli or HP petrol pump"
                   value={newRide.meetingPoint}
@@ -1480,7 +1500,15 @@ export default function LetsRide({ user }) {
             <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5', marginBottom: '18px' }}>
               Are you sure you want to cancel <strong>"{confirmCancelRide.title}"</strong>? 
               <br/><br/>
-              <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>⚠️ PENALTY WARNING:</span> If you cancel, you will be penalized and <strong>cannot create any new rides for the next 7 days</strong>. All joined members will be notified.
+              {user && confirmCancelRide.user_id === user.uid ? (
+                <>
+                  <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>⚠️ PENALTY WARNING:</span> If you cancel, you will be penalized and <strong>cannot create any new rides for the next 7 days</strong>. All joined members will be notified.
+                </>
+              ) : (
+                <>
+                  <span style={{ color: 'var(--secondary)', fontWeight: 'bold' }}>🛡️ ADMIN MODERATION:</span> As an administrator, you are moderating this post. No penalty will be applied to your account.
+                </>
+              )}
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button 
@@ -1495,7 +1523,7 @@ export default function LetsRide({ user }) {
                 style={{ flex: 1.5, padding: '8px', fontSize: '12px', background: 'linear-gradient(135deg, var(--accent) 0%, #d32f2f 100%)', border: 'none', color: 'white' }} 
                 onClick={handleCancelRideConfirm}
               >
-                Yes, Cancel & Penalize
+                {user && confirmCancelRide.user_id === user.uid ? 'Yes, Cancel & Penalize' : 'Yes, Delete Post'}
               </button>
             </div>
           </div>
