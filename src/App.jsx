@@ -335,7 +335,7 @@ export default function App() {
       )}
 
       {/* Main Screen Router Box */}
-      <div className="app-content" style={{ flex: 1, position: 'relative', height: 'calc(100% - 72px)', overflow: 'hidden' }}>
+      <div className="app-content" style={{ flex: 1, position: 'relative', height: 'calc(100% - 74px - env(safe-area-inset-bottom, 0px))', overflow: 'hidden' }}>
         <Suspense fallback={
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0d12' }}>
             <div style={{ textAlign: 'center' }}>
@@ -409,16 +409,16 @@ export default function App() {
           bottom: '0', 
           left: '0', 
           right: '0', 
-          height: '72px', 
+          height: 'calc(74px + env(safe-area-inset-bottom, 0px))', 
           borderRadius: '0', 
           borderWidth: '1px 0 0 0', 
           display: 'flex', 
           justifyContent: 'space-around', 
           alignItems: 'center', 
-          padding: '0 10px',
+          padding: '10px 10px calc(env(safe-area-inset-bottom, 0px) + 10px) 10px',
           zIndex: 85,
           background: 'rgba(10, 10, 12, 0.95)',
-          paddingBottom: 'env(safe-area-inset-bottom)', // For notched mobile devices
+          boxSizing: 'border-box',
           transform: showBottomNav ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'
         }}

@@ -55,14 +55,34 @@ const suggestionItemStyle = (idx, total) => ({
   textAlign: 'left'
 });
 
+const formatDisplayDate = (dateStr) => {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const yyyy = parts[0];
+    const mm = parseInt(parts[1], 10);
+    const dd = parseInt(parts[2], 10);
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    if (mm >= 1 && mm <= 12) {
+      return `${dd} ${months[mm - 1]} ${yyyy}`;
+    }
+  }
+  return dateStr;
+};
+
 export default function LetsRide({ user }) {
   const [rides, setRides] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [selectedRide, setSelectedRide] = useState(null);
   const [editingSocialRide, setEditingSocialRide] = useState(null);
   const [confirmCancelRide, setConfirmCancelRide] = useState(null);
+  const isAdmin = user && (user.email === 'admin@helpriderss.com' || user.level === 'System Administrator');
   
   // New Ride Form State
   const [newRide, setNewRide] = useState({
@@ -239,6 +259,16 @@ export default function LetsRide({ user }) {
     fetchCommunityRides();
   }, []);
 
+  const handleRefreshFeed = async () => {
+    setIsRefreshing(true);
+    await fetchCommunityRides();
+    setTimeout(() => {
+      setIsRefreshing(false);
+      showToast('🔄 Feed refreshed successfully!');
+    }, 600);
+  };
+
+
   const handlePostInputChange = (field, val) => {
     setNewRide(prev => ({ ...prev, [field]: val }));
   };
@@ -350,8 +380,8 @@ export default function LetsRide({ user }) {
       return;
     }
 
-    // Check cancellation penalty
-    if (!editingSocialRide && user && user.uid) {
+    // Check cancellation penalty (Bypassed for system administrator)
+    if (!isAdmin && !editingSocialRide && user && user.uid) {
       try {
         const { data: profile } = await supabase
           .from('profiles')
@@ -372,8 +402,8 @@ export default function LetsRide({ user }) {
       }
     }
 
-    // Check Posting Limits (only for new posts, not edits)
-    if (!editingSocialRide && user) {
+    // Check Posting Limits (only for new posts, not edits - Bypassed for system administrator)
+    if (!isAdmin && !editingSocialRide && user) {
       const myRides = rides.filter(r => r.user_id === user.uid && r.created_at);
       const nowMs = Date.now();
       
@@ -679,8 +709,8 @@ export default function LetsRide({ user }) {
         }
       }
 
-      // 2. Set penalty for the host (7 days from now) in their profile (only if the host is cancelling their own ride)
-      const isOwnRide = user && ride.user_id === user.uid;
+      // 2. Set penalty for the host (7 days from now) in their profile (only if the host is cancelling their own ride and not an admin)
+      const isOwnRide = user && ride.user_id === user.uid && !isAdmin;
       if (isOwnRide) {
         const penaltyDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
         const { error: profileErr } = await supabase
@@ -699,7 +729,14 @@ export default function LetsRide({ user }) {
 
       if (deleteErr) throw deleteErr;
 
-      showToast('🚫 Ride cancelled. 7-day posting penalty applied.');
+      // Filter out of local state immediately for instant feedback
+      setRides(prev => prev.filter(r => r.id !== ride.id));
+
+      if (isAdmin) {
+        showToast('🚫 Ride post deleted by Administrator.');
+      } else {
+        showToast('🚫 Ride cancelled. 7-day posting penalty applied.');
+      }
       fetchCommunityRides();
     } catch (err) {
       showToast('❌ Failed to cancel ride: ' + err.message);
@@ -764,7 +801,8 @@ export default function LetsRide({ user }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '8px' }}>
           <h3 style={{ fontSize: '16px', color: 'white', margin: 0 }}>Active Ride Posts</h3>
           <button 
-            onClick={fetchCommunityRides} 
+            onClick={handleRefreshFeed} 
+            disabled={isRefreshing}
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -775,11 +813,16 @@ export default function LetsRide({ user }) {
               border: '1px solid rgba(255,85,0,0.15)', 
               padding: '4px 10px', 
               borderRadius: '8px',
-              cursor: 'pointer',
-              fontWeight: '600'
+              cursor: isRefreshing ? 'not-allowed' : 'pointer',
+              fontWeight: '600',
+              opacity: isRefreshing ? 0.7 : 1
             }}
           >
-            <RotateCw size={11} /> Refresh Feed
+            <RotateCw 
+              size={11} 
+              className={isRefreshing ? 'animate-spin' : ''} 
+              style={isRefreshing ? { animation: 'spin 0.8s linear infinite' } : {}}
+            /> {isRefreshing ? 'Refreshing...' : 'Refresh Feed'}
           </button>
         </div>
         
@@ -798,7 +841,7 @@ export default function LetsRide({ user }) {
                     Posted by {ride.creator}
                   </span>
                   <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Calendar size={13} /> {ride.date}
+                    <Calendar size={13} /> {formatDisplayDate(ride.date)}
                   </span>
                 </div>
 

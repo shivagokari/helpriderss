@@ -433,7 +433,7 @@ input:focus, select:focus, textarea:focus {
 
   /* App Shell content wrapper scaling */
   .app-content {
-    height: calc(100% - 58px) !important;
+    height: calc(100% - 74px - env(safe-area-inset-bottom, 0px)) !important;
   }
 
   /* Compact section padding */
@@ -540,6 +540,14 @@ input:focus, select:focus, textarea:focus {
   .scroll-y {
     padding-bottom: 90px !important;
   }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin {
+  animation: spin 0.8s linear infinite;
 }
 
 

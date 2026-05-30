@@ -550,14 +550,14 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
     try {
       const { error } = await supabase
         .from('friend_requests')
-        .delete()
+        .update({ status: 'accepted' })
         .eq('from_id', user.uid)
         .eq('to_id', rider.uid)
         .eq('status', 'blocked');
 
       if (error) throw error;
 
-      showToast(`✅ ${rider.displayName} has been unblocked.`);
+      showToast(`✅ ${rider.displayName} has been unblocked and restored as a friend.`);
       fetchFriendsAndRequests();
     } catch (err) {
       showToast('❌ Failed to unblock: ' + err.message);
@@ -1374,8 +1374,8 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
 
       {/* Chat Modal */}
       {activeChatFriend && (
-        <div className="bottom-sheet-overlay animate-fade-in" style={{ zIndex: 160, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="glass-panel animate-zoom-in" style={{ width: '92%', maxWidth: '360px', height: '460px', padding: '0', background: 'rgba(18,18,24,0.98)', borderColor: 'var(--primary)', boxShadow: '0 10px 40px rgba(0,0,0,0.6)', borderRadius: '24px', display: 'flex', flexDirection: 'column' }}>
+        <div className="bottom-sheet-overlay animate-fade-in" style={{ zIndex: 160, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div className="glass-panel animate-zoom-in" style={{ width: '100%', maxWidth: '400px', height: '80dvh', maxHeight: '520px', padding: '0 0 calc(env(safe-area-inset-bottom, 0px) + 8px) 0', background: 'rgba(18,18,24,0.98)', borderColor: 'var(--primary)', boxShadow: '0 -10px 40px rgba(0,0,0,0.6)', borderBottomLeftRadius: '0px', borderBottomRightRadius: '0px', borderTopLeftRadius: '24px', borderTopRightRadius: '24px', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                 <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold' }}>
