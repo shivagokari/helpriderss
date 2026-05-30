@@ -367,7 +367,187 @@ export const INDIAN_CITIES = [
   { name: "Jamshedpur, Jharkhand", lat: 22.8046, lon: 86.2029, state: "Jharkhand" },
   { name: "Guwahati, Assam", lat: 26.1445, lon: 91.7362, state: "Assam" },
   { name: "Shillong Hills, Meghalaya", lat: 25.5788, lon: 91.8831, state: "Meghalaya" },
-  { name: "Gangtok, Sikkim", lat: 27.3314, lon: 88.6138, state: "Sikkim" }
+  { name: "Gangtok, Sikkim", lat: 27.3314, lon: 88.6138, state: "Sikkim" },
+
+  // Andhra Pradesh Districts
+  { name: "Anantapur District, Andhra Pradesh", lat: 14.6819, lon: 77.6006, state: "Andhra Pradesh" },
+  { name: "Sri Sathya Sai District, Andhra Pradesh", lat: 14.1647, lon: 77.8090, state: "Andhra Pradesh" },
+  { name: "YSR Kadapa District, Andhra Pradesh", lat: 14.4716, lon: 78.8247, state: "Andhra Pradesh" },
+  { name: "Annamayya District, Andhra Pradesh", lat: 14.0500, lon: 78.7500, state: "Andhra Pradesh" },
+  { name: "Chittoor District, Andhra Pradesh", lat: 13.2172, lon: 79.1003, state: "Andhra Pradesh" },
+  { name: "Tirupati District, Andhra Pradesh", lat: 13.6288, lon: 79.4192, state: "Andhra Pradesh" },
+  { name: "SPSR Nellore District, Andhra Pradesh", lat: 14.4426, lon: 79.9864, state: "Andhra Pradesh" },
+  { name: "Prakasam District, Andhra Pradesh", lat: 15.5000, lon: 80.0500, state: "Andhra Pradesh" },
+  { name: "Bapatla District, Andhra Pradesh", lat: 15.9044, lon: 80.4686, state: "Andhra Pradesh" },
+  { name: "Palnadu District, Andhra Pradesh", lat: 16.2361, lon: 80.0469, state: "Andhra Pradesh" },
+  { name: "Guntur District, Andhra Pradesh", lat: 16.3067, lon: 80.4367, state: "Andhra Pradesh" },
+  { name: "NTR District, Andhra Pradesh", lat: 16.5062, lon: 80.6480, state: "Andhra Pradesh" },
+  { name: "Krishna District, Andhra Pradesh", lat: 16.1875, lon: 81.1300, state: "Andhra Pradesh" },
+  { name: "Eluru District, Andhra Pradesh", lat: 16.7104, lon: 81.1032, state: "Andhra Pradesh" },
+  { name: "West Godavari District, Andhra Pradesh", lat: 16.5449, lon: 81.5224, state: "Andhra Pradesh" },
+  { name: "East Godavari District, Andhra Pradesh", lat: 16.9890, lon: 81.7820, state: "Andhra Pradesh" },
+  { name: "Konaseema District, Andhra Pradesh", lat: 16.5787, lon: 82.0061, state: "Andhra Pradesh" },
+  { name: "Kakinada District, Andhra Pradesh", lat: 16.9833, lon: 82.2333, state: "Andhra Pradesh" },
+  { name: "Anakapalli District, Andhra Pradesh", lat: 17.6894, lon: 83.0024, state: "Andhra Pradesh" },
+  { name: "Visakhapatnam District, Andhra Pradesh", lat: 17.6868, lon: 83.2185, state: "Andhra Pradesh" },
+  { name: "Vizianagaram District, Andhra Pradesh", lat: 18.1167, lon: 83.4167, state: "Andhra Pradesh" },
+  { name: "Parvathipuram Manyam District, Andhra Pradesh", lat: 18.7833, lon: 83.4333, state: "Andhra Pradesh" },
+  { name: "Srikakulam District, Andhra Pradesh", lat: 18.3167, lon: 83.9000, state: "Andhra Pradesh" },
+  { name: "Alluri Sitharama Raju District, Andhra Pradesh", lat: 18.0833, lon: 82.6667, state: "Andhra Pradesh" },
+  { name: "Nandyal District, Andhra Pradesh", lat: 15.4847, lon: 78.4872, state: "Andhra Pradesh" },
+  { name: "Kurnool District, Andhra Pradesh", lat: 15.8281, lon: 78.0373, state: "Andhra Pradesh" },
+
+  // Telangana Districts
+  { name: "Adilabad District, Telangana", lat: 19.6667, lon: 78.5333, state: "Telangana" },
+  { name: "Bhadradri Kothagudem District, Telangana", lat: 17.5450, lon: 80.6225, state: "Telangana" },
+  { name: "Hanamkonda District, Telangana", lat: 18.0125, lon: 79.5475, state: "Telangana" },
+  { name: "Hyderabad District, Telangana", lat: 17.3850, lon: 78.4867, state: "Telangana" },
+  { name: "Jagtial District, Telangana", lat: 18.7981, lon: 78.9080, state: "Telangana" },
+  { name: "Jangaon District, Telangana", lat: 17.7214, lon: 79.1633, state: "Telangana" },
+  { name: "Jayashankar Bhupalpally District, Telangana", lat: 18.4312, lon: 79.8624, state: "Telangana" },
+  { name: "Jogulamba Gadwal District, Telangana", lat: 16.2764, lon: 77.8015, state: "Telangana" },
+  { name: "Kamareddy District, Telangana", lat: 18.3184, lon: 78.3370, state: "Telangana" },
+  { name: "Karimnagar District, Telangana", lat: 18.4386, lon: 79.1288, state: "Telangana" },
+  { name: "Khammam District, Telangana", lat: 17.2473, lon: 80.1514, state: "Telangana" },
+  { name: "Kumuram Bheem Asifabad District, Telangana", lat: 19.3580, lon: 79.2740, state: "Telangana" },
+  { name: "Mahabubabad District, Telangana", lat: 17.5975, lon: 80.0150, state: "Telangana" },
+  { name: "Mahabubnagar District, Telangana", lat: 16.7333, lon: 77.9833, state: "Telangana" },
+  { name: "Mancherial District, Telangana", lat: 18.8750, lon: 79.4300, state: "Telangana" },
+  { name: "Medak District, Telangana", lat: 18.0333, lon: 78.2667, state: "Telangana" },
+  { name: "Medchal-Malkajgiri District, Telangana", lat: 17.6294, lon: 78.4831, state: "Telangana" },
+  { name: "Mulugu District, Telangana", lat: 18.1915, lon: 79.9422, state: "Telangana" },
+  { name: "Nagarkurnool District, Telangana", lat: 16.4833, lon: 78.3000, state: "Telangana" },
+  { name: "Nalgonda District, Telangana", lat: 17.0500, lon: 79.2667, state: "Telangana" },
+  { name: "Narayanpet District, Telangana", lat: 16.7456, lon: 77.4984, state: "Telangana" },
+  { name: "Nirmal District, Telangana", lat: 19.0964, lon: 78.3475, state: "Telangana" },
+  { name: "Nizamabad District, Telangana", lat: 18.6725, lon: 78.0941, state: "Telangana" },
+  { name: "Peddapalli District, Telangana", lat: 18.6180, lon: 79.3812, state: "Telangana" },
+  { name: "Rajanna Sircilla District, Telangana", lat: 18.3847, lon: 78.8322, state: "Telangana" },
+  { name: "Rangareddy District, Telangana", lat: 17.2530, lon: 78.4312, state: "Telangana" },
+  { name: "Sangareddy District, Telangana", lat: 17.6167, lon: 78.0833, state: "Telangana" },
+  { name: "Siddipet District, Telangana", lat: 18.1018, lon: 78.8520, state: "Telangana" },
+  { name: "Suryapet District, Telangana", lat: 17.1353, lon: 79.6236, state: "Telangana" },
+  { name: "Vikarabad District, Telangana", lat: 17.3486, lon: 77.8687, state: "Telangana" },
+  { name: "Wanaparthy District, Telangana", lat: 16.3622, lon: 78.0624, state: "Telangana" },
+  { name: "Warangal District, Telangana", lat: 17.9689, lon: 79.5941, state: "Telangana" },
+  { name: "Yadadri Bhuvanagiri District, Telangana", lat: 17.5147, lon: 78.8872, state: "Telangana" },
+
+  // Andhra Pradesh Mandals
+  { name: "Kuppam Mandal, Andhra Pradesh", lat: 12.7500, lon: 78.3667, state: "Andhra Pradesh" },
+  { name: "Madanapalle Mandal, Andhra Pradesh", lat: 13.5519, lon: 78.5020, state: "Andhra Pradesh" },
+  { name: "Gurazala Mandal, Andhra Pradesh", lat: 16.5817, lon: 79.5694, state: "Andhra Pradesh" },
+  { name: "Dachepalli Mandal, Andhra Pradesh", lat: 16.6025, lon: 79.7347, state: "Andhra Pradesh" },
+  { name: "Sattenapalle Mandal, Andhra Pradesh", lat: 16.3975, lon: 80.1492, state: "Andhra Pradesh" },
+  { name: "Piduguralla Mandal, Andhra Pradesh", lat: 16.4836, lon: 79.8864, state: "Andhra Pradesh" },
+  { name: "Chilakaluripet Mandal, Andhra Pradesh", lat: 16.0894, lon: 80.1658, state: "Andhra Pradesh" },
+  { name: "Narasaraopet Mandal, Andhra Pradesh", lat: 16.2361, lon: 80.0469, state: "Andhra Pradesh" },
+  { name: "Bapatla Mandal, Andhra Pradesh", lat: 15.9044, lon: 80.4686, state: "Andhra Pradesh" },
+  { name: "Chirala Mandal, Andhra Pradesh", lat: 15.8246, lon: 80.3520, state: "Andhra Pradesh" },
+  { name: "Repalle Mandal, Andhra Pradesh", lat: 16.0167, lon: 80.8500, state: "Andhra Pradesh" },
+  { name: "Tenali Mandal, Andhra Pradesh", lat: 16.2394, lon: 80.6397, state: "Andhra Pradesh" },
+  { name: "Mangalagiri Mandal, Andhra Pradesh", lat: 16.4380, lon: 80.5670, state: "Andhra Pradesh" },
+  { name: "Tadepalli Mandal, Andhra Pradesh", lat: 16.4812, lon: 80.6015, state: "Andhra Pradesh" },
+  { name: "Gudivada Mandal, Andhra Pradesh", lat: 16.4411, lon: 80.9934, state: "Andhra Pradesh" },
+  { name: "Machilipatnam Mandal, Andhra Pradesh", lat: 16.1875, lon: 81.1300, state: "Andhra Pradesh" },
+  { name: "Mylavaram Mandal, Andhra Pradesh", lat: 16.7589, lon: 80.6378, state: "Andhra Pradesh" },
+  { name: "Nandigama Mandal, Andhra Pradesh", lat: 16.7686, lon: 80.2936, state: "Andhra Pradesh" },
+  { name: "Jaggayyapeta Mandal, Andhra Pradesh", lat: 16.8933, lon: 80.0967, state: "Andhra Pradesh" },
+  { name: "Tiruvuru Mandal, Andhra Pradesh", lat: 17.1189, lon: 80.6133, state: "Andhra Pradesh" },
+  { name: "Nuzvid Mandal, Andhra Pradesh", lat: 16.7887, lon: 80.8471, state: "Andhra Pradesh" },
+  { name: "Jangareddygudem Mandal, Andhra Pradesh", lat: 17.1167, lon: 81.2833, state: "Andhra Pradesh" },
+  { name: "Chintalapudi Mandal, Andhra Pradesh", lat: 17.0667, lon: 80.9833, state: "Andhra Pradesh" },
+  { name: "Bhimavaram Mandal, Andhra Pradesh", lat: 16.5449, lon: 81.5224, state: "Andhra Pradesh" },
+  { name: "Tanuku Mandal, Andhra Pradesh", lat: 16.7570, lon: 81.6967, state: "Andhra Pradesh" },
+  { name: "Palakollu Mandal, Andhra Pradesh", lat: 16.5200, lon: 81.7300, state: "Andhra Pradesh" },
+  { name: "Narasapuram Mandal, Andhra Pradesh", lat: 16.4410, lon: 81.7011, state: "Andhra Pradesh" },
+  { name: "Tadepalligudem Mandal, Andhra Pradesh", lat: 16.8333, lon: 81.5333, state: "Andhra Pradesh" },
+  { name: "Rajamahendravaram Mandal, Andhra Pradesh", lat: 16.9890, lon: 81.7820, state: "Andhra Pradesh" },
+  { name: "Mandapeta Mandal, Andhra Pradesh", lat: 16.8667, lon: 81.9333, state: "Andhra Pradesh" },
+  { name: "Kovvur Mandal, Andhra Pradesh", lat: 17.0167, lon: 81.7333, state: "Andhra Pradesh" },
+  { name: "Amalapuram Mandal, Andhra Pradesh", lat: 16.5787, lon: 82.0061, state: "Andhra Pradesh" },
+  { name: "Ravulapalem Mandal, Andhra Pradesh", lat: 16.7333, lon: 81.7667, state: "Andhra Pradesh" },
+  { name: "Ramachandrapuram Mandal, Andhra Pradesh", lat: 16.8500, lon: 82.0167, state: "Andhra Pradesh" },
+  { name: "Kakinada Mandal, Andhra Pradesh", lat: 16.9833, lon: 82.2333, state: "Andhra Pradesh" },
+  { name: "Peddapuram Mandal, Andhra Pradesh", lat: 17.0800, lon: 82.1300, state: "Andhra Pradesh" },
+  { name: "Samalkot Mandal, Andhra Pradesh", lat: 17.0500, lon: 82.1667, state: "Andhra Pradesh" },
+  { name: "Pithapuram Mandal, Andhra Pradesh", lat: 17.1167, lon: 82.2500, state: "Andhra Pradesh" },
+  { name: "Tuni Mandal, Andhra Pradesh", lat: 17.3500, lon: 82.5500, state: "Andhra Pradesh" },
+  { name: "Anakapalli Mandal, Andhra Pradesh", lat: 17.6894, lon: 83.0024, state: "Andhra Pradesh" },
+  { name: "Narsipatnam Mandal, Andhra Pradesh", lat: 17.6667, lon: 82.6167, state: "Andhra Pradesh" },
+  { name: "Chodavaram Mandal, Andhra Pradesh", lat: 17.8333, lon: 82.9333, state: "Andhra Pradesh" },
+  { name: "Visakhapatnam Mandal, Andhra Pradesh", lat: 17.6868, lon: 83.2185, state: "Andhra Pradesh" },
+  { name: "Bheemunipatnam Mandal, Andhra Pradesh", lat: 17.8894, lon: 83.4456, state: "Andhra Pradesh" },
+  { name: "Vizianagaram Mandal, Andhra Pradesh", lat: 18.1167, lon: 83.4167, state: "Andhra Pradesh" },
+  { name: "Bobbili Mandal, Andhra Pradesh", lat: 18.5667, lon: 83.3667, state: "Andhra Pradesh" },
+  { name: "Parvathipuram Mandal, Andhra Pradesh", lat: 18.7833, lon: 83.4333, state: "Andhra Pradesh" },
+  { name: "Salur Mandal, Andhra Pradesh", lat: 18.5333, lon: 83.2167, state: "Andhra Pradesh" },
+  { name: "Srikakulam Mandal, Andhra Pradesh", lat: 18.3167, lon: 83.9000, state: "Andhra Pradesh" },
+  { name: "Palasa Mandal, Andhra Pradesh", lat: 18.7667, lon: 84.4167, state: "Andhra Pradesh" },
+  { name: "Tekkali Mandal, Andhra Pradesh", lat: 18.6167, lon: 84.2333, state: "Andhra Pradesh" },
+  { name: "Paderu Mandal, Andhra Pradesh", lat: 18.0833, lon: 82.6667, state: "Andhra Pradesh" },
+  { name: "Araku Valley Mandal, Andhra Pradesh", lat: 18.3273, lon: 82.8775, state: "Andhra Pradesh" },
+  { name: "Nandyal Mandal, Andhra Pradesh", lat: 15.4847, lon: 78.4872, state: "Andhra Pradesh" },
+  { name: "Allagadda Mandal, Andhra Pradesh", lat: 15.1333, lon: 78.5000, state: "Andhra Pradesh" },
+  { name: "Banaganapalle Mandal, Andhra Pradesh", lat: 15.3167, lon: 78.1333, state: "Andhra Pradesh" },
+  { name: "Kurnool Mandal, Andhra Pradesh", lat: 15.8281, lon: 78.0373, state: "Andhra Pradesh" },
+  { name: "Adoni Mandal, Andhra Pradesh", lat: 15.6322, lon: 77.2728, state: "Andhra Pradesh" },
+  { name: "Yemmiganur Mandal, Andhra Pradesh", lat: 15.7667, lon: 77.4833, state: "Andhra Pradesh" },
+  { name: "Dhone Mandal, Andhra Pradesh", lat: 15.4000, lon: 77.8833, state: "Andhra Pradesh" },
+
+  // Telangana Mandals
+  { name: "Medchal Mandal, Telangana", lat: 17.6294, lon: 78.4831, state: "Telangana" },
+  { name: "Shamshabad Mandal, Telangana", lat: 17.2530, lon: 78.4312, state: "Telangana" },
+  { name: "Ghatkesar Mandal, Telangana", lat: 17.4475, lon: 78.6874, state: "Telangana" },
+  { name: "Keesara Mandal, Telangana", lat: 17.5323, lon: 78.6792, state: "Telangana" },
+  { name: "Shamirpet Mandal, Telangana", lat: 17.6105, lon: 78.5661, state: "Telangana" },
+  { name: "Moinabad Mandal, Telangana", lat: 17.3204, lon: 78.2818, state: "Telangana" },
+  { name: "Chevella Mandal, Telangana", lat: 17.3075, lon: 78.1384, state: "Telangana" },
+  { name: "Shankarpally Mandal, Telangana", lat: 17.4485, lon: 78.1328, state: "Telangana" },
+  { name: "Ibrahimpatnam Mandal, Telangana", lat: 17.1895, lon: 78.6492, state: "Telangana" },
+  { name: "Maheshwaram Mandal, Telangana", lat: 17.1332, lon: 78.4310, state: "Telangana" },
+  { name: "Vikarabad Mandal, Telangana", lat: 17.3486, lon: 77.8687, state: "Telangana" },
+  { name: "Tandur Mandal, Telangana", lat: 17.2575, lon: 77.5878, state: "Telangana" },
+  { name: "Parigi Mandal, Telangana", lat: 17.1824, lon: 77.8872, state: "Telangana" },
+  { name: "Kodangal Mandal, Telangana", lat: 17.1124, lon: 77.6253, state: "Telangana" },
+  { name: "Sangareddy Mandal, Telangana", lat: 17.6167, lon: 78.0833, state: "Telangana" },
+  { name: "Patancheru Mandal, Telangana", lat: 17.5256, lon: 78.2678, state: "Telangana" },
+  { name: "Zaheerabad Mandal, Telangana", lat: 17.6792, lon: 77.6169, state: "Telangana" },
+  { name: "Narayankhed Mandal, Telangana", lat: 18.0436, lon: 77.7814, state: "Telangana" },
+  { name: "Siddipet Mandal, Telangana", lat: 18.1018, lon: 78.8520, state: "Telangana" },
+  { name: "Gajwel Mandal, Telangana", lat: 17.8524, lon: 78.6872, state: "Telangana" },
+  { name: "Dubbak Mandal, Telangana", lat: 18.1500, lon: 78.6333, state: "Telangana" },
+  { name: "Husnabad Mandal, Telangana", lat: 18.1333, lon: 79.2000, state: "Telangana" },
+  { name: "Medak Mandal, Telangana", lat: 18.0333, lon: 78.2667, state: "Telangana" },
+  { name: "Tupran Mandal, Telangana", lat: 17.8872, lon: 78.4831, state: "Telangana" },
+  { name: "Nalgonda Mandal, Telangana", lat: 17.0500, lon: 79.2667, state: "Telangana" },
+  { name: "Miryalaguda Mandal, Telangana", lat: 16.8741, lon: 79.5670, state: "Telangana" },
+  { name: "Devarakonda Mandal, Telangana", lat: 16.6980, lon: 78.9015, state: "Telangana" },
+  { name: "Suryapet Mandal, Telangana", lat: 17.1353, lon: 79.6236, state: "Telangana" },
+  { name: "Kodad Mandal, Telangana", lat: 17.0018, lon: 79.9650, state: "Telangana" },
+  { name: "Huzurnagar Mandal, Telangana", lat: 16.9015, lon: 79.8700, state: "Telangana" },
+  { name: "Bhongir Mandal, Telangana", lat: 17.5147, lon: 78.8872, state: "Telangana" },
+  { name: "Yadagirigutta Mandal, Telangana", lat: 17.5855, lon: 78.9489, state: "Telangana" },
+  { name: "Aler Mandal, Telangana", lat: 17.6438, lon: 79.0494, state: "Telangana" },
+  { name: "Mahabubnagar Mandal, Telangana", lat: 16.7333, lon: 77.9833, state: "Telangana" },
+  { name: "Jadcherla Mandal, Telangana", lat: 16.7725, lon: 78.1415, state: "Telangana" },
+  { name: "Shadnagar Mandal, Telangana", lat: 17.0675, lon: 78.2045, state: "Telangana" },
+  { name: "Wanaparthy Mandal, Telangana", lat: 16.3622, lon: 78.0624, state: "Telangana" },
+  { name: "Gadwal Mandal, Telangana", lat: 16.2764, lon: 77.8015, state: "Telangana" },
+  { name: "Alampur Mandal, Telangana", lat: 15.8794, lon: 78.1322, state: "Telangana" },
+  { name: "Nagarkurnool Mandal, Telangana", lat: 16.4833, lon: 78.3000, state: "Telangana" },
+  { name: "Achampet Mandal, Telangana", lat: 16.3832, lon: 78.9669, state: "Telangana" },
+  { name: "Kollapur Mandal, Telangana", lat: 16.1156, lon: 78.3150, state: "Telangana" },
+  { name: "Narayanpet Mandal, Telangana", lat: 16.7456, lon: 77.4984, state: "Telangana" },
+  { name: "Kosgi Mandal, Telangana", lat: 16.9850, lon: 77.7125, state: "Telangana" },
+  { name: "Khammam Mandal, Telangana", lat: 17.2473, lon: 80.1514, state: "Telangana" },
+  { name: "Sathupally Mandal, Telangana", lat: 17.2084, lon: 80.8247, state: "Telangana" },
+  { name: "Wyra Mandal, Telangana", lat: 17.1994, lon: 80.3475, state: "Telangana" },
+  { name: "Madhira Mandal, Telangana", lat: 16.9167, lon: 80.3667, state: "Telangana" },
+  { name: "Kothagudem Mandal, Telangana", lat: 17.5450, lon: 80.6225, state: "Telangana" },
+  { name: "Bhadrachalam Mandal, Telangana", lat: 17.6700, lon: 80.8800, state: "Telangana" },
+  { name: "Paloncha Mandal, Telangana", lat: 17.5878, lon: 80.6975, state: "Telangana" },
+  { name: "Manuguru Mandal, Telangana", lat: 17.9667, lon: 80.8167, state: "Telangana" },
+  { name: "Yellandu Mandal, Telangana", lat: 17.6000, lon: 80.2500, state: "Telangana" }
 ];
 
 // State-by-State Fuel Prices per Liter (Normal & Power Petrol) matching the uploaded price list
@@ -1003,4 +1183,73 @@ export function generateLocationWeather(lat, lon, dateString) {
     wind: `Wind: ${windSpeed} km/h | Humidity: ${humidity}%`,
     warning: warning
   };
+}
+
+/**
+ * Parses coordinates or Google Maps URLs to extract latitude, longitude, and place name
+ */
+export function parseGoogleMapsUrl(input) {
+  if (!input) return null;
+  // Clean optional brackets and parentheses from coordinates e.g. "(17.3, 78.4)" -> "17.3, 78.4"
+  const str = input.replace(/[()\[\]]/g, '').trim();
+  
+  // Case 1: Raw Coordinates (e.g. "17.3850, 78.4867" or "17.3850 78.4867")
+  const coordsRegex = /^(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)$/;
+  const coordsMatch = str.match(coordsRegex);
+  if (coordsMatch) {
+    const lat = parseFloat(coordsMatch[1]);
+    const lon = parseFloat(coordsMatch[2]);
+    return {
+      name: `Custom Location (${lat.toFixed(4)}, ${lon.toFixed(4)})`,
+      lat,
+      lon,
+      isCustom: true
+    };
+  }
+
+  // Case 2: Google Maps Link
+  if (str.startsWith('http://') || str.startsWith('https://')) {
+    // Try to extract coordinates from URL (usually has @lat,lon,zoom)
+    const latLonRegex = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
+    const latLonMatch = str.match(latLonRegex);
+    
+    let lat = null;
+    let lon = null;
+    if (latLonMatch) {
+      lat = parseFloat(latLonMatch[1]);
+      lon = parseFloat(latLonMatch[2]);
+    } else {
+      // Try search query coordinate query param (e.g. ?q=lat,lon)
+      const qParamRegex = /[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/;
+      const qParamMatch = str.match(qParamRegex);
+      if (qParamMatch) {
+        lat = parseFloat(qParamMatch[1]);
+        lon = parseFloat(qParamMatch[2]);
+      }
+    }
+
+    if (lat !== null && lon !== null) {
+      // Try to extract place name
+      // URL format: .../maps/place/Name_With_Pluses/...
+      let name = `Google Maps Point (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
+      const placeNameRegex = /\/maps\/place\/([^/]+)/;
+      const placeNameMatch = str.match(placeNameRegex);
+      if (placeNameMatch) {
+        try {
+          const decoded = decodeURIComponent(placeNameMatch[1].split('/')[0].replace(/\+/g, ' '));
+          name = decoded;
+        } catch (e) {
+          console.warn("Failed to decode place name", e);
+        }
+      }
+      return {
+        name,
+        lat,
+        lon,
+        isCustom: true
+      };
+    }
+  }
+  
+  return null;
 }

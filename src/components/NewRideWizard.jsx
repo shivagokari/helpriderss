@@ -22,7 +22,8 @@ import {
   getFuelPriceForLocation,
   fetchNearbyHospitals,
   fetchNearbyAttractions,
-  generateLocationWeather
+  generateLocationWeather,
+  parseGoogleMapsUrl
 } from '../utils/geo';
 
 // Dynamic Steps Helper Function
@@ -437,6 +438,22 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
     updated[index].selected = false;
     updated[index].coords = null;
     
+    // Check for Google Maps URL or Coordinates
+    const parsed = parseGoogleMapsUrl(val);
+    if (parsed) {
+      updated[index].name = parsed.name;
+      updated[index].coords = { lat: parsed.lat, lon: parsed.lon };
+      updated[index].selected = true;
+      updated[index].suggestions = [];
+      setWaypoints(updated);
+      setValidationError('✅ Successfully parsed waypoint coordinates!');
+      setTimeout(() => setValidationError(''), 4500);
+      return;
+    } else if (val.startsWith('http://') || val.startsWith('https://')) {
+      setValidationError('⚠️ Shortened Google Maps links (maps.app.goo.gl) are blocked by browser CORS restrictions. Please paste a long URL containing coordinates (e.g. with @lat,lon) or enter raw coordinates.');
+      setShowValidationPopup(true);
+    }
+    
     if (val.trim().length >= 1) {
       const locals = getLocalCities(val);
       updated[index].suggestions = locals;
@@ -484,6 +501,22 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
     updated[index].selected = false;
     updated[index].coords = null;
     
+    // Check for Google Maps URL or Coordinates
+    const parsed = parseGoogleMapsUrl(val);
+    if (parsed) {
+      updated[index].name = parsed.name;
+      updated[index].coords = { lat: parsed.lat, lon: parsed.lon };
+      updated[index].selected = true;
+      updated[index].suggestions = [];
+      setReturnWaypoints(updated);
+      setValidationError('✅ Successfully parsed return waypoint coordinates!');
+      setTimeout(() => setValidationError(''), 4500);
+      return;
+    } else if (val.startsWith('http://') || val.startsWith('https://')) {
+      setValidationError('⚠️ Shortened Google Maps links (maps.app.goo.gl) are blocked by browser CORS restrictions. Please paste a long URL containing coordinates (e.g. with @lat,lon) or enter raw coordinates.');
+      setShowValidationPopup(true);
+    }
+    
     if (val.trim().length >= 1) {
       const locals = getLocalCities(val);
       updated[index].suggestions = locals;
@@ -525,6 +558,44 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
     setReturnWaypoints(updated);
   };
 
+  const handleReturnStartChange = (val) => {
+    setReturnStartLocation(val);
+    setReturnStartSelected(false);
+    setReturnStartCoords(null);
+    
+    const parsed = parseGoogleMapsUrl(val);
+    if (parsed) {
+      setReturnStartLocation(parsed.name);
+      setReturnStartCoords({ lat: parsed.lat, lon: parsed.lon });
+      setReturnStartSelected(true);
+      setReturnStartSuggestions([]);
+      setValidationError('✅ Successfully parsed return start coordinates!');
+      setTimeout(() => setValidationError(''), 4500);
+    } else if (val.startsWith('http://') || val.startsWith('https://')) {
+      setValidationError('⚠️ Shortened Google Maps links (maps.app.goo.gl) are blocked by browser CORS restrictions. Please paste a long URL containing coordinates (e.g. with @lat,lon) or enter raw coordinates.');
+      setShowValidationPopup(true);
+    }
+  };
+
+  const handleReturnDestChange = (val) => {
+    setReturnDestination(val);
+    setReturnDestSelected(false);
+    setReturnDestCoords(null);
+    
+    const parsed = parseGoogleMapsUrl(val);
+    if (parsed) {
+      setReturnDestination(parsed.name);
+      setReturnDestCoords({ lat: parsed.lat, lon: parsed.lon });
+      setReturnDestSelected(true);
+      setReturnDestSuggestions([]);
+      setValidationError('✅ Successfully parsed return destination coordinates!');
+      setTimeout(() => setValidationError(''), 4500);
+    } else if (val.startsWith('http://') || val.startsWith('https://')) {
+      setValidationError('⚠️ Shortened Google Maps links (maps.app.goo.gl) are blocked by browser CORS restrictions. Please paste a long URL containing coordinates (e.g. with @lat,lon) or enter raw coordinates.');
+      setShowValidationPopup(true);
+    }
+  };
+
   // Bike Autocomplete query on 1+ letters (instant local)
   useEffect(() => {
     const query = bikeSearch.trim();
@@ -538,6 +609,28 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
 
   const handleInputChange = (field, value) => {
     setValidationError('');
+    
+    if (field === 'startLocation' || field === 'destination') {
+      const parsed = parseGoogleMapsUrl(value);
+      if (parsed) {
+        if (field === 'startLocation') {
+          setStartCoords({ lat: parsed.lat, lon: parsed.lon });
+          setStartSelected(true);
+          setStartSuggestions([]);
+        } else {
+          setDestCoords({ lat: parsed.lat, lon: parsed.lon });
+          setDestSelected(true);
+          setDestSuggestions([]);
+        }
+        setFormData(prev => ({ ...prev, [field]: parsed.name }));
+        setValidationError('✅ Successfully parsed coordinates from input!');
+        setTimeout(() => setValidationError(''), 4500);
+        return;
+      } else if (value.startsWith('http://') || value.startsWith('https://')) {
+        setValidationError('⚠️ Shortened Google Maps links (maps.app.goo.gl) are blocked by browser CORS restrictions. Please paste a long URL containing coordinates (e.g. with @lat,lon) or enter raw coordinates.');
+        setShowValidationPopup(true);
+      }
+    }
     
     if (field === 'rideDates') {
       const todayStr = getTodayDateString();
@@ -1407,8 +1500,8 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                 {/* Geocoding Cities Auto-suggestion Step */}
                 {currentStepInfo.key === 'route' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }} className="animate-fade-in">
-                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                      Enter Indian towns (e.g. Jammu, Hyderabad, Mumbai, Pune, Leh). Suggestions update as you type.
+                    <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                      Enter Indian towns/mandals/districts OR <strong>paste raw coordinates or a long Google Maps URL</strong> containing coordinates.
                     </p>
                     
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', position: 'relative' }}>
@@ -1530,8 +1623,8 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                 {/* Return Route Step (dynamically inserted if Round Trip selected) */}
                 {currentStepInfo.key === 'returnRoute' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }} className="animate-fade-in">
-                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                      Enter the return route details (you can customize starting point, destination, and return stops).
+                    <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                      Enter return route details OR <strong>paste raw coordinates or a long Google Maps URL</strong> containing coordinates.
                     </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', position: 'relative' }}>
                       
@@ -1544,11 +1637,7 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                           className="has-left-icon"
                           placeholder="Type return starting city"
                           value={returnStartLocation}
-                          onChange={(e) => {
-                            setReturnStartLocation(e.target.value);
-                            setReturnStartSelected(false);
-                            setReturnStartCoords(null);
-                          }}
+                          onChange={(e) => handleReturnStartChange(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
                           style={{ width: '100%', paddingLeft: '38px', fontSize: '13px', background: '#1c1c24' }}
                         />
@@ -1582,11 +1671,7 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                           className="has-left-icon"
                           placeholder="Type return destination"
                           value={returnDestination}
-                          onChange={(e) => {
-                            setReturnDestination(e.target.value);
-                            setReturnDestSelected(false);
-                            setReturnDestCoords(null);
-                          }}
+                          onChange={(e) => handleReturnDestChange(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
                           style={{ width: '100%', paddingLeft: '38px', fontSize: '13px', background: '#1c1c24' }}
                         />
