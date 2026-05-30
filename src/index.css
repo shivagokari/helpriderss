@@ -442,7 +442,8 @@ input:focus, select:focus, textarea:focus {
   .home-dashboard {
     padding: 14px 12px !important;
     width: 100% !important;
-    max-width: 100% !important;
+    max-width: 360px !important;
+    margin: 0 auto !important;
     box-sizing: border-box !important;
   }
 

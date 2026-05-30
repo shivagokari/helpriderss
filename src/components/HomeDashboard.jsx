@@ -702,7 +702,7 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
   const essentialsCheckedCount = checkedEssentials.length;
 
   return (
-    <div className="home-dashboard scroll-y" style={{ padding: '20px 16px' }}>
+    <div className="home-dashboard scroll-y" style={{ padding: '20px 16px', maxWidth: '360px', margin: '0 auto' }}>
       
       {/* Header bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }} className="animate-fade-in">
