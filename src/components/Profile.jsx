@@ -756,7 +756,7 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
   if (emergencyContacts.length >= 1) badges.push({ title: 'Safety First', icon: '🛡️', color: '#ff2233' });
 
   return (
-    <div className="profile-section scroll-y mobile-compact-section" style={{ padding: '20px calc(16px + 1cm)', position: 'relative', width: '100%', maxWidth: '324px', margin: '0 auto', boxSizing: 'border-box' }}>
+    <div className="profile-section scroll-y mobile-compact-section" style={{ padding: '20px 16px', position: 'relative', width: '100%', maxWidth: '360px', margin: '0 auto', boxSizing: 'border-box' }}>
 
       {/* Profile Header */}
       <div style={{ textAlign: 'center', marginBottom: '20px' }} className="animate-fade-in">

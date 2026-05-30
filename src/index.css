@@ -447,9 +447,9 @@ input:focus, select:focus, textarea:focus {
   }
 
   .profile-section {
-    padding: 14px calc(12px + 1cm) !important;
+    padding: 14px 12px !important;
     width: 100% !important;
-    max-width: 324px !important;
+    max-width: 360px !important;
     margin: 0 auto !important;
     box-sizing: border-box !important;
   }
