@@ -75,7 +75,11 @@ CREATE POLICY "Authenticated users can insert rides" ON public.rides
 
 DROP POLICY IF EXISTS "Users can update or delete their own rides" ON public.rides;
 CREATE POLICY "Users can update or delete their own rides" ON public.rides
-  FOR ALL USING (auth.uid() = user_id OR auth.jwt() ->> 'email' = 'admin@helpriderss.com');
+  FOR ALL USING (
+    auth.uid() = user_id OR 
+    auth.jwt() ->> 'email' = 'admin@helpriderss.com' OR
+    EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.level = 'System Administrator')
+  );
 
 
 

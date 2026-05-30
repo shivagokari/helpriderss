@@ -92,6 +92,23 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
   const [showNotifications, setShowNotifications] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [nearbyRides, setNearbyRides] = useState([]);
+  const [dismissedNearbyRides, setDismissedNearbyRides] = useState(() => {
+    try {
+      const saved = localStorage.getItem('helpriders_dismissed_nearby_rides');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const handleDismissNearbyRide = (rideId) => {
+    setDismissedNearbyRides(prev => {
+      const updated = [...prev, rideId];
+      localStorage.setItem('helpriders_dismissed_nearby_rides', JSON.stringify(updated));
+      return updated;
+    });
+    setNearbyRides(prev => prev.filter(r => r.id !== rideId));
+  };
   const [userCoords, setUserCoords] = useState(null); // { lat, lon }
 
   const showToast = (msg) => {
@@ -387,9 +404,16 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
           uCoords = city ? { lat: city.lat, lon: city.lon } : { lat: 17.3850, lon: 78.4867 }; // fallback to Hyderabad
         }
 
+        const savedDismissed = [];
+        try {
+          const saved = localStorage.getItem('helpriders_dismissed_nearby_rides');
+          if (saved) Object.assign(savedDismissed, JSON.parse(saved));
+        } catch (e) {}
+
         const nearby = [];
         allRides.forEach(ride => {
           if (ride.user_id === user.uid) return; // skip own rides
+          if (savedDismissed.includes(ride.id)) return; // skip dismissed
 
           const routeParts = ride.route ? ride.route.split(' ➔ ') : [];
           if (routeParts.length > 0) {
@@ -1119,7 +1143,14 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
                     </h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       {nearbyRides.map((ride) => (
-                        <div key={ride.id} style={{ background: 'rgba(0, 176, 255, 0.03)', border: '1px solid rgba(0, 176, 255, 0.1)', padding: '12px', borderRadius: '12px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div key={ride.id} style={{ background: 'rgba(0, 176, 255, 0.03)', border: '1px solid rgba(0, 176, 255, 0.1)', padding: '12px 28px 12px 12px', borderRadius: '12px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
+                          <button
+                            onClick={() => handleDismissNearbyRide(ride.id)}
+                            style={{ position: 'absolute', top: '8px', right: '8px', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+                            title="Dismiss Notification"
+                          >
+                            <X size={12} />
+                          </button>
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', fontWeight: 'bold' }}>
                             <span>🏍️ {ride.title}</span>
                             <span style={{ color: 'var(--primary)' }}>{Math.round(ride.distance)} km away</span>
@@ -1147,7 +1178,14 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
                     </h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       {pendingRideRequests.map((req) => (
-                        <div key={req.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', padding: '12px', borderRadius: '12px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div key={req.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', padding: '12px 28px 12px 12px', borderRadius: '12px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
+                          <button
+                            onClick={() => handleDeclineRideRequest(req.rideId, req.id, req.name)}
+                            style={{ position: 'absolute', top: '8px', right: '8px', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+                            title="Dismiss Request"
+                          >
+                            <X size={12} />
+                          </button>
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', fontWeight: 'bold' }}>
                             <span>👤 {req.name} (Age: {req.age})</span>
                             <span style={{ color: 'var(--secondary)' }}>{req.crewType}</span>
@@ -1188,7 +1226,14 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
                     </h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       {pendingFriendRequests.map((req) => (
-                        <div key={req.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', padding: '12px', borderRadius: '12px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div key={req.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', padding: '12px 28px 12px 12px', borderRadius: '12px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative' }}>
+                          <button
+                            onClick={() => handleDeclineFriendRequest(req)}
+                            style={{ position: 'absolute', top: '8px', right: '8px', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+                            title="Dismiss Request"
+                          >
+                            <X size={12} />
+                          </button>
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', fontWeight: 'bold' }}>
                             <span>👤 {req.displayName}</span>
                             <span style={{ color: 'var(--info)' }}>{req.level}</span>
@@ -1222,6 +1267,38 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
                     </div>
                   </div>
                 )}
+
+                <button
+                  onClick={async () => {
+                    // 1. Dismiss all nearby rides
+                    const allNearbyIds = nearbyRides.map(r => r.id);
+                    setDismissedNearbyRides(prev => {
+                      const updated = [...new Set([...prev, ...allNearbyIds])];
+                      localStorage.setItem('helpriders_dismissed_nearby_rides', JSON.stringify(updated));
+                      return updated;
+                    });
+                    setNearbyRides([]);
+                    
+                    // 2. Decline all pending friend requests
+                    const friendReqsToDecline = [...pendingFriendRequests];
+                    setPendingFriendRequests([]);
+                    for (const req of friendReqsToDecline) {
+                      await handleDeclineFriendRequest(req);
+                    }
+                    
+                    // 3. Decline all pending ride join requests
+                    const rideReqsToDecline = [...pendingRideRequests];
+                    setPendingRideRequests([]);
+                    for (const req of rideReqsToDecline) {
+                      await handleDeclineRideRequest(req.rideId, req.id, req.name);
+                    }
+                    
+                    showToast('🧹 Cleared all notifications.');
+                  }}
+                  style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.02)', color: 'var(--text-secondary)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold', marginTop: '10px' }}
+                >
+                  <Trash2 size={14} /> Clear All Notifications
+                </button>
 
               </div>
             )}

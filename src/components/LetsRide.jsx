@@ -669,11 +669,24 @@ export default function LetsRide({ user }) {
             await supabase.from('messages').insert({
               sender_id: user.uid,
               receiver_id: rider.user_id,
-              content: `🚨 SYSTEM NOTICE: The community ride "${ride.title}" scheduled for ${ride.date} has been CANCELLED by the host. Please check other rides.`
+              content: `🚨 SYSTEM NOTICE: The community ride "${ride.title}" scheduled for ${ride.date} has been CANCELLED by ${isAdmin ? 'the Administrator' : 'the host'}. Please check other rides.`
             });
           } catch (msgErr) {
             console.warn('Failed to insert message notification for cancellation:', msgErr);
           }
+        }
+      }
+
+      // Send system notice to the host if deleted by admin
+      if (isAdmin && ride.user_id && ride.user_id !== user?.uid) {
+        try {
+          await supabase.from('messages').insert({
+            sender_id: user.uid,
+            receiver_id: ride.user_id,
+            content: `🚨 SYSTEM NOTICE: Your community ride "${ride.title}" scheduled for ${ride.date} has been deleted by the Administrator.`
+          });
+        } catch (msgErr) {
+          console.warn('Failed to notify host of admin deletion:', msgErr);
         }
       }
 
@@ -686,7 +699,7 @@ export default function LetsRide({ user }) {
           .update({ penalty_until: penaltyDate })
           .eq('id', user.uid);
         
-        if (profileErr) throw profileErr;
+         if (profileErr) throw profileErr;
       }
 
       // 3. Delete the ride from the database
