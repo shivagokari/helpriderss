@@ -51,12 +51,16 @@ CREATE TABLE IF NOT EXISTS public.rides (
   distance TEXT DEFAULT '0 KM',
   bike_type TEXT DEFAULT 'All Bikes Welcome',
   description TEXT DEFAULT '',
+  meeting_point TEXT DEFAULT '',
   joined_count INTEGER DEFAULT 1,
   join_requests JSONB DEFAULT '[]'::jsonb,
   max_slots INTEGER DEFAULT 50,
   is_favorite BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Migration: Add meeting_point column if not exists to rides table
+ALTER TABLE public.rides ADD COLUMN IF NOT EXISTS meeting_point TEXT DEFAULT '';
 
 -- Enable RLS on Rides
 ALTER TABLE public.rides ENABLE ROW LEVEL SECURITY;

@@ -285,39 +285,7 @@ export default function LetsRide({ user }) {
       return;
     }
 
-    // Strict Location Autocomplete Verification
-    let finalStartSelected = startSelected;
-    let finalDestSelected = destSelected;
-    let finalMeetSelected = meetSelected;
-
-    if (!finalStartSelected) {
-      const query = newRide.startPoint.trim().toLowerCase();
-      const match = INDIAN_CITIES.some(c => c.name.toLowerCase() === query);
-      if (match) finalStartSelected = true;
-    }
-    if (!finalDestSelected) {
-      const query = newRide.destination.trim().toLowerCase();
-      const match = INDIAN_CITIES.some(c => c.name.toLowerCase() === query);
-      if (match) finalDestSelected = true;
-    }
-    if (!finalMeetSelected && newRide.meetingPoint) {
-      const query = newRide.meetingPoint.trim().toLowerCase();
-      const match = INDIAN_CITIES.some(c => c.name.toLowerCase() === query);
-      if (match) finalMeetSelected = true;
-    }
-
-    if (!finalStartSelected) {
-      showToast('⚠️ Please select a valid Start Point from the suggestions list.');
-      return;
-    }
-    if (!finalDestSelected) {
-      showToast('⚠️ Please select a valid Destination from the suggestions list.');
-      return;
-    }
-    if (!finalMeetSelected) {
-      showToast('⚠️ Please select a valid Meeting Point from the suggestions list.');
-      return;
-    }
+    // No strict location suggestion constraints are enforced; any place can be typed.
 
     // Distance digits-only validation & formatting
     const rawDistanceDigits = newRide.distance.replace(/[^0-9]/g, '');
@@ -737,7 +705,6 @@ export default function LetsRide({ user }) {
       } else {
         showToast('🚫 Ride cancelled. 7-day posting penalty applied.');
       }
-      fetchCommunityRides();
     } catch (err) {
       showToast('❌ Failed to cancel ride: ' + err.message);
     } finally {
@@ -1113,29 +1080,9 @@ export default function LetsRide({ user }) {
                     required
                     placeholder="e.g. Gachibowli"
                     value={newRide.startPoint}
-                    onChange={(e) => handleStartChange(e.target.value)}
-                    onBlur={() => {
-                      setTimeout(() => setStartSuggestions([]), 200);
-                    }}
+                    onChange={(e) => handlePostInputChange('startPoint', e.target.value)}
                     style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
                   />
-                  {startSuggestions.length > 0 && (
-                    <div style={suggestionDropdownStyle}>
-                      {startSuggestions.map((item, idx) => (
-                        <div
-                          key={idx}
-                          onMouseDown={() => {
-                            handlePostInputChange('startPoint', item.name);
-                            setStartSelected(true);
-                            setStartSuggestions([]);
-                          }}
-                          style={suggestionItemStyle(idx, startSuggestions.length)}
-                        >
-                          📍 {item.name}
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
                 <div style={{ position: 'relative' }}>
                   <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Destination *</label>
@@ -1146,29 +1093,9 @@ export default function LetsRide({ user }) {
                     required
                     placeholder="e.g. Vikarabad"
                     value={newRide.destination}
-                    onChange={(e) => handleDestChange(e.target.value)}
-                    onBlur={() => {
-                      setTimeout(() => setDestSuggestions([]), 200);
-                    }}
+                    onChange={(e) => handlePostInputChange('destination', e.target.value)}
                     style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
                   />
-                  {destSuggestions.length > 0 && (
-                    <div style={suggestionDropdownStyle}>
-                      {destSuggestions.map((item, idx) => (
-                        <div
-                          key={idx}
-                          onMouseDown={() => {
-                            handlePostInputChange('destination', item.name);
-                            setDestSelected(true);
-                            setDestSuggestions([]);
-                          }}
-                          style={suggestionItemStyle(idx, destSuggestions.length)}
-                        >
-                          📍 {item.name}
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -1181,29 +1108,9 @@ export default function LetsRide({ user }) {
                   required
                   placeholder="e.g. Decathlon Gachibowli or HP petrol pump"
                   value={newRide.meetingPoint}
-                  onChange={(e) => handleMeetChange(e.target.value)}
-                  onBlur={() => {
-                    setTimeout(() => setMeetSuggestions([]), 200);
-                  }}
+                  onChange={(e) => handlePostInputChange('meetingPoint', e.target.value)}
                   style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
                 />
-                {meetSuggestions.length > 0 && (
-                  <div style={suggestionDropdownStyle}>
-                    {meetSuggestions.map((item, idx) => (
-                      <div
-                        key={idx}
-                        onMouseDown={() => {
-                          handlePostInputChange('meetingPoint', item.name);
-                          setMeetSelected(true);
-                          setMeetSuggestions([]);
-                        }}
-                        style={suggestionItemStyle(idx, meetSuggestions.length)}
-                      >
-                        📍 {item.name}
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '8px' }}>
