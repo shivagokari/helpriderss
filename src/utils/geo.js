@@ -577,11 +577,11 @@ export async function getOSRMRouteDistance(coords) {
   if (!coords || coords.length < 2) return 0;
   const coordString = coords.map(c => `${c.lon},${c.lat}`).join(';');
 
-  // Try OpenStreetMap Germany Bicycle Routing Server (Primary)
+  // Try OpenStreetMap Germany Driving Routing Server (Primary)
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout limit
-    const url = `https://routing.openstreetmap.de/routed-bike/route/v1/bicycle/${coordString}?overview=false`;
+    const url = `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordString}?overview=false`;
     const response = await fetch(url, { 
       signal: controller.signal,
       headers: {
