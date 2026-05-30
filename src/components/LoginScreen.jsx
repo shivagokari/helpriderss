@@ -193,11 +193,11 @@ export default function LoginScreen({ onLoginSuccess }) {
 
       if (signInError) {
         // Auto-seed admin account
-        if (cleanEmail === 'admin@helpriderss.com' && password === 'Admin@2026') {
+        if (cleanEmail === 'admin@helpriderss.com' && (password === 'Admin@2026' || finalPassword === 'Admin@2026')) {
           setError('');
           const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             email: cleanEmail,
-            password: password,
+            password: finalPassword,
             options: {
               data: {
                 mobile: '+91 99999 88888',
