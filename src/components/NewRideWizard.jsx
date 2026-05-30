@@ -760,31 +760,9 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
       ];
       returnDistance = await getOSRMRouteDistance(returnCoords);
     }
-    
-    // Secondary Name-Based Calibration safety net
+    // Secondary Name-Based Calibration safety net bypassed to trust raw OSRM road distance
     let finalOutboundDistance = outboundDistance;
-    const startName = (formData.startLocation || '').toLowerCase();
-    const destName = (formData.destination || '').toLowerCase();
-    const isHydRegion = (name) => /hyderabad|kukatpally|secunderabad|gachibowli|madhapur|uppal|miyapur|kondapur/i.test(name);
-    const isSrisailamRegion = (name) => /srisailam/i.test(name);
-    const isYadagiriRegion = (name) => /yadagirigutta|yadgiri/i.test(name);
-
-    if ((isHydRegion(startName) && isSrisailamRegion(destName)) || (isSrisailamRegion(startName) && isHydRegion(destName))) {
-      finalOutboundDistance = Math.max(outboundDistance, 343);
-    } else if ((isYadagiriRegion(startName) && isSrisailamRegion(destName)) || (isSrisailamRegion(startName) && isYadagiriRegion(destName))) {
-      finalOutboundDistance = Math.max(outboundDistance, 315);
-    }
-
     let finalReturnDistance = returnDistance;
-    if (formData.tripType === 'Round Trip') {
-      const retStartName = (returnStartLocation || formData.destination || '').toLowerCase();
-      const retDestName = (returnDestination || formData.startLocation || '').toLowerCase();
-      if ((isHydRegion(retStartName) && isSrisailamRegion(retDestName)) || (isSrisailamRegion(retStartName) && isHydRegion(retDestName))) {
-        finalReturnDistance = Math.max(returnDistance, 343);
-      } else if ((isYadagiriRegion(retStartName) && isSrisailamRegion(retDestName)) || (isSrisailamRegion(retStartName) && isYadagiriRegion(retDestName))) {
-        finalReturnDistance = Math.max(returnDistance, 315);
-      }
-    }
     
     const finalDistance = finalOutboundDistance + finalReturnDistance;
 

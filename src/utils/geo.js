@@ -594,7 +594,7 @@ export async function getOSRMRouteDistance(coords) {
       if (data.routes && data.routes.length > 0) {
         const distanceInMeters = data.routes[0].distance;
         let km = Math.round(distanceInMeters / 1000);
-        return applyForestCalibrations(coords, km);
+        return km;
       }
     }
   } catch (err) {
@@ -618,7 +618,7 @@ export async function getOSRMRouteDistance(coords) {
       if (data.routes && data.routes.length > 0) {
         const distanceInMeters = data.routes[0].distance;
         let km = Math.round(distanceInMeters / 1000);
-        return applyForestCalibrations(coords, km);
+        return km;
       }
     }
   } catch (err) {
@@ -642,7 +642,7 @@ export async function getOSRMRouteDistance(coords) {
       if (data.routes && data.routes.length > 0) {
         const distanceInMeters = data.routes[0].distance;
         let km = Math.round(distanceInMeters / 1000);
-        return applyForestCalibrations(coords, km);
+        return km;
       }
     }
   } catch (err) {
