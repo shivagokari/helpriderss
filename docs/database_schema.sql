@@ -15,11 +15,15 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   active_bike TEXT DEFAULT '',
   garage JSONB DEFAULT '[]'::jsonb,
   emergency_contacts JSONB DEFAULT '[]'::jsonb,
+  penalty_until TIMESTAMP WITH TIME ZONE DEFAULT NULL,
   joined_date TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Enable Row Level Security (RLS) on Profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- Migration: Add security_pin column if not exists
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS security_pin TEXT DEFAULT NULL;
 
 DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public.profiles;
 CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles
@@ -31,7 +35,7 @@ CREATE POLICY "Users can update their own profile" ON public.profiles
 
 DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
 CREATE POLICY "Users can insert their own profile" ON public.profiles
-  FOR INSERT WITH CHECK (true);
+  FOR INSERT WITH CHECK (auth.uid() = id);
 
 
 -- 2. Create Rides Table (to store biker itineraries)
@@ -63,7 +67,7 @@ CREATE POLICY "Rides are viewable by everyone" ON public.rides
 
 DROP POLICY IF EXISTS "Authenticated users can insert rides" ON public.rides;
 CREATE POLICY "Authenticated users can insert rides" ON public.rides
-  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  FOR INSERT WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = user_id);
 
 DROP POLICY IF EXISTS "Users can update or delete their own rides" ON public.rides;
 CREATE POLICY "Users can update or delete their own rides" ON public.rides
@@ -90,9 +94,12 @@ DROP POLICY IF EXISTS "update_policy" ON public.dev_contacts;
 DROP POLICY IF EXISTS "delete_policy" ON public.dev_contacts;
 
 CREATE POLICY "insert_policy" ON public.dev_contacts FOR INSERT WITH CHECK (true);
-CREATE POLICY "select_policy" ON public.dev_contacts FOR SELECT USING (true);
-CREATE POLICY "update_policy" ON public.dev_contacts FOR UPDATE USING (true);
-CREATE POLICY "delete_policy" ON public.dev_contacts FOR DELETE USING (true);
+CREATE POLICY "select_policy" ON public.dev_contacts FOR SELECT USING (
+  (auth.uid() IS NOT NULL AND auth.uid() = user_id) OR
+  (auth.jwt() ->> 'email' = 'admin@helpriderss.com')
+);
+CREATE POLICY "update_policy" ON public.dev_contacts FOR UPDATE USING (auth.jwt() ->> 'email' = 'admin@helpriderss.com');
+CREATE POLICY "delete_policy" ON public.dev_contacts FOR DELETE USING (auth.jwt() ->> 'email' = 'admin@helpriderss.com');
 
 
 -- 4. Create Friend Requests Table
@@ -111,7 +118,9 @@ ALTER TABLE public.friend_requests ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can manage their requests" ON public.friend_requests;
 CREATE POLICY "Users can manage their requests" ON public.friend_requests
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  FOR ALL TO authenticated 
+  USING (auth.uid() = from_id OR auth.uid() = to_id)
+  WITH CHECK (auth.uid() = from_id OR auth.uid() = to_id);
 
 
 -- 5. Create Messages (Chat) Table
@@ -135,17 +144,22 @@ CREATE POLICY "Users can insert messages" ON public.messages
   FOR INSERT TO authenticated WITH CHECK (auth.uid() = sender_id);
 
 
--- 6. Password Recovery RPC function
+-- 6. Password Recovery RPC function (with Recovery PIN verification)
+DROP FUNCTION IF EXISTS public.recover_user_password(text,text,text,text);
+DROP FUNCTION IF EXISTS public.recover_user_password(text,text,text);
+
 CREATE OR REPLACE FUNCTION public.recover_user_password(
   p_email TEXT,
   p_mobile TEXT,
-  p_new_password TEXT
+  p_new_password TEXT,
+  p_pin TEXT DEFAULT NULL
 )
 RETURNS BOOLEAN
 SECURITY DEFINER
 AS $$
 DECLARE
   v_user_id UUID;
+  v_db_pin TEXT;
   v_clean_p_mobile TEXT;
 BEGIN
   v_clean_p_mobile := regexp_replace(p_mobile, '\D', '', 'g');
@@ -153,13 +167,20 @@ BEGIN
     v_clean_p_mobile := '91' || v_clean_p_mobile;
   END IF;
 
-  SELECT id INTO v_user_id
+  SELECT id, security_pin INTO v_user_id, v_db_pin
   FROM public.profiles
   WHERE LOWER(email) = LOWER(p_email)
     AND regexp_replace(mobile, '\D', '', 'g') = v_clean_p_mobile;
 
   IF v_user_id IS NULL THEN
     RETURN FALSE;
+  END IF;
+
+  -- If the user has configured a security recovery PIN, verify it matches
+  IF v_db_pin IS NOT NULL AND COALESCE(v_db_pin, '') <> '' THEN
+    IF p_pin IS NULL OR p_pin <> v_db_pin THEN
+      RETURN FALSE;
+    END IF;
   END IF;
 
   UPDATE auth.users
@@ -169,4 +190,45 @@ BEGIN
   RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql;
+
+
+-- 7. Automatic Profile Seeding on Auth Signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_unique_id TEXT;
+  v_level TEXT;
+BEGIN
+  IF new.email = 'admin@helpriderss.com' THEN
+    v_unique_id := 'HR-ADMIN';
+    v_level := 'System Administrator';
+  ELSE
+    -- Generate a unique 5-digit number unique_id
+    v_unique_id := 'HR-' || floor(10000 + random() * 90000)::text;
+    -- Make sure it is unique
+    WHILE EXISTS (SELECT 1 FROM public.profiles WHERE unique_id = v_unique_id) LOOP
+      v_unique_id := 'HR-' || floor(10000 + random() * 90000)::text;
+    END LOOP;
+    v_level := 'Rookie Rider';
+  END IF;
+
+  INSERT INTO public.profiles (id, email, mobile, name, level, unique_id)
+  VALUES (
+    new.id,
+    new.email,
+    COALESCE(new.raw_user_meta_data->>'mobile', ''),
+    COALESCE(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+    v_level,
+    v_unique_id
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Recreate trigger to avoid duplicates
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 

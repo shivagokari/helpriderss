@@ -61,10 +61,26 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
 
   // ─── Reminders state ───────────────────────────────────────────────────────
   const [reminders, setReminders] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('helpriders_reminders') || '[]'); } catch { return []; }
+    if (user && user.uid) {
+      try {
+        const saved = localStorage.getItem(`helpriders_reminders_${user.uid}`);
+        return saved ? JSON.parse(saved) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
   });
   const [checkedEssentials, setCheckedEssentials] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('helpriders_essentials') || '[]'); } catch { return []; }
+    if (user && user.uid) {
+      try {
+        const saved = localStorage.getItem(`helpriders_essentials_${user.uid}`);
+        return saved ? JSON.parse(saved) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
   });
   const [newReminderTitle, setNewReminderTitle] = useState('');
   const [newReminderDate, setNewReminderDate] = useState('');
@@ -75,6 +91,8 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
   const [pendingRideRequests, setPendingRideRequests] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [nearbyRides, setNearbyRides] = useState([]);
+  const [userCoords, setUserCoords] = useState(null); // { lat, lon }
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -231,6 +249,7 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const { latitude, longitude } = position.coords;
+          setUserCoords({ lat: latitude, lon: longitude });
           try {
             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
             if (res.ok) {
@@ -352,6 +371,53 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
     } catch (err) {
       console.warn('Error fetching friend requests:', err);
     }
+
+    // 3. Fetch Nearby Rides (within 80 KMs of user location)
+    try {
+      const { data: allRides, error: allRidesErr } = await supabase
+        .from('rides')
+        .select('*');
+
+      if (!allRidesErr && allRides) {
+        // Resolve user coordinates
+        let uCoords = userCoords;
+        if (!uCoords) {
+          const cleanWeatherCity = weatherCity.split(',')[0].trim().toLowerCase();
+          const city = INDIAN_CITIES.find(c => c.name.toLowerCase().includes(cleanWeatherCity));
+          uCoords = city ? { lat: city.lat, lon: city.lon } : { lat: 17.3850, lon: 78.4867 }; // fallback to Hyderabad
+        }
+
+        const nearby = [];
+        allRides.forEach(ride => {
+          if (ride.user_id === user.uid) return; // skip own rides
+
+          const routeParts = ride.route ? ride.route.split(' ➔ ') : [];
+          if (routeParts.length > 0) {
+            const startName = routeParts[0].trim();
+            const cleanStartName = startName.split(',')[0].trim().toLowerCase();
+            const startCity = INDIAN_CITIES.find(c => c.name.toLowerCase().includes(cleanStartName));
+            
+            if (startCity) {
+              const dist = calculateRoadDistance(uCoords.lat, uCoords.lon, startCity.lat, startCity.lon);
+              if (dist <= 80) {
+                nearby.push({
+                  id: ride.id,
+                  title: ride.title,
+                  creator: ride.creator,
+                  startPoint: startName,
+                  distance: dist,
+                  date: ride.date,
+                  time: ride.time
+                });
+              }
+            }
+          }
+        });
+        setNearbyRides(nearby);
+      }
+    } catch (err) {
+      console.warn('Error fetching nearby rides from Supabase:', err);
+    }
   };
 
   useEffect(() => {
@@ -467,12 +533,16 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
   };
 
   useEffect(() => {
-    localStorage.setItem('helpriders_reminders', JSON.stringify(reminders));
-  }, [reminders]);
+    if (user && user.uid) {
+      localStorage.setItem(`helpriders_reminders_${user.uid}`, JSON.stringify(reminders));
+    }
+  }, [reminders, user]);
 
   useEffect(() => {
-    localStorage.setItem('helpriders_essentials', JSON.stringify(checkedEssentials));
-  }, [checkedEssentials]);
+    if (user && user.uid) {
+      localStorage.setItem(`helpriders_essentials_${user.uid}`, JSON.stringify(checkedEssentials));
+    }
+  }, [checkedEssentials, user]);
 
   const addReminder = (e) => {
     e.preventDefault();
@@ -627,7 +697,7 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
             }}
           >
             <Bell size={18} />
-            {(pendingFriendRequests.length + pendingRideRequests.length) > 0 && (
+            {(pendingFriendRequests.length + pendingRideRequests.length + nearbyRides.length) > 0 && (
               <span style={{ 
                 position: 'absolute', 
                 top: '-4px', 
@@ -644,7 +714,7 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
                 justifyContent: 'center', 
                 border: '1.5px solid #0d0d12'
               }}>
-                {pendingFriendRequests.length + pendingRideRequests.length}
+                {pendingFriendRequests.length + pendingRideRequests.length + nearbyRides.length}
               </span>
             )}
           </button>
@@ -1032,15 +1102,43 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
               </button>
             </div>
 
-            {pendingRideRequests.length === 0 && pendingFriendRequests.length === 0 ? (
+            {pendingRideRequests.length === 0 && pendingFriendRequests.length === 0 && nearbyRides.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--text-muted)' }}>
                 <Bell size={32} style={{ margin: '0 auto 12px', opacity: 0.3, display: 'block' }} />
                 <p style={{ fontSize: '13px' }}>All quiet on the crew deck! 🏍️</p>
-                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>No pending ride or friend requests.</p>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>No pending requests or nearby rides.</p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 
+                {/* Nearby Rides Section */}
+                {nearbyRides.length > 0 && (
+                  <div>
+                    <h4 style={{ fontSize: '13px', color: '#00b0ff', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px', marginBottom: '10px', fontWeight: 'bold' }}>
+                      📍 Nearby Rides Scheduled ({"<"} 80km) ({nearbyRides.length})
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {nearbyRides.map((ride) => (
+                        <div key={ride.id} style={{ background: 'rgba(0, 176, 255, 0.03)', border: '1px solid rgba(0, 176, 255, 0.1)', padding: '12px', borderRadius: '12px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', fontWeight: 'bold' }}>
+                            <span>🏍️ {ride.title}</span>
+                            <span style={{ color: 'var(--primary)' }}>{Math.round(ride.distance)} km away</span>
+                          </div>
+                          <div style={{ color: 'var(--text-secondary)' }}>
+                            Hosted by: <strong style={{ color: 'white' }}>{ride.creator}</strong>
+                          </div>
+                          <div style={{ color: 'var(--text-secondary)' }}>
+                            Start: {ride.startPoint}
+                          </div>
+                          <div style={{ color: 'var(--text-secondary)', fontSize: '10px', marginTop: '2px' }}>
+                            📅 {ride.date} at {ride.time}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Ride Requests Section */}
                 {pendingRideRequests.length > 0 && (
                   <div>

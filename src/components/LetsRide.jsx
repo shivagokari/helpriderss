@@ -1,10 +1,59 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, MapPin, Calendar, Clock, PlusCircle, AlertTriangle, 
-  CheckCircle, MessageSquare, Phone, Bike, Compass, X, ShieldAlert 
+  CheckCircle, MessageSquare, Phone, Bike, Compass, X, ShieldAlert,
+  RotateCw
 } from 'lucide-react';
-import { BIKES_DATABASE } from '../utils/geo';
+import { BIKES_DATABASE, INDIAN_CITIES, searchLocationInIndia } from '../utils/geo';
 import { supabase } from '../utils/supabase';
+
+const parseTimeParts = (timeStr) => {
+  if (!timeStr) return { hour: '12', minute: '00', period: 'AM' };
+  const clean = timeStr.trim().toUpperCase();
+  const isPM = clean.includes('PM');
+  const isAM = clean.includes('AM');
+  const timePart = clean.replace(/[AP]M/, '').trim();
+  const parts = timePart.split(':');
+  if (parts.length >= 2) {
+    let hh = parseInt(parts[0], 10);
+    const mm = parts[1];
+    let period = 'AM';
+    if (isPM) period = 'PM';
+    else if (isAM) period = 'AM';
+    else {
+      period = hh >= 12 ? 'PM' : 'AM';
+      hh = hh % 12;
+      hh = hh ? hh : 12;
+    }
+    return { hour: hh.toString(), minute: mm, period };
+  }
+  return { hour: '12', minute: '00', period: 'AM' };
+};
+
+const suggestionDropdownStyle = {
+  position: 'absolute',
+  top: '100%',
+  left: 0,
+  right: 0,
+  zIndex: 150,
+  background: 'rgba(18, 18, 22, 0.98)',
+  border: '1.5px solid var(--glass-border)',
+  borderRadius: '10px',
+  marginTop: '4px',
+  maxHeight: '150px',
+  overflowY: 'auto',
+  boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+  backdropFilter: 'blur(10px)'
+};
+
+const suggestionItemStyle = (idx, total) => ({
+  padding: '10px 12px',
+  fontSize: '12px',
+  color: 'white',
+  cursor: 'pointer',
+  borderBottom: idx < total - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+  textAlign: 'left'
+});
 
 export default function LetsRide({ user }) {
   const [rides, setRides] = useState([]);
@@ -13,16 +62,18 @@ export default function LetsRide({ user }) {
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [selectedRide, setSelectedRide] = useState(null);
   const [editingSocialRide, setEditingSocialRide] = useState(null);
+  const [confirmCancelRide, setConfirmCancelRide] = useState(null);
   
   // New Ride Form State
   const [newRide, setNewRide] = useState({
     title: '',
     startPoint: '',
     destination: '',
+    meetingPoint: '',
     date: '',
-    time: '',
+    time: '12:00 AM',
     distance: '',
-    bikeType: 'All Bikes Welcome',
+    bikeType: 'Any Bike',
     description: '',
     maxSlots: 50
   });
@@ -37,6 +88,66 @@ export default function LetsRide({ user }) {
   });
 
   const [bikeSuggestions, setBikeSuggestions] = useState([]);
+  const [startSuggestions, setStartSuggestions] = useState([]);
+  const [destSuggestions, setDestSuggestions] = useState([]);
+  const [meetSuggestions, setMeetSuggestions] = useState([]);
+
+  const [startSelected, setStartSelected] = useState(false);
+  const [destSelected, setDestSelected] = useState(false);
+  const [meetSelected, setMeetSelected] = useState(false);
+
+  const [startTimer, setStartTimer] = useState(null);
+  const handleStartChange = (val) => {
+    handlePostInputChange('startPoint', val);
+    setStartSelected(false);
+    if (startTimer) clearTimeout(startTimer);
+    if (!val.trim()) {
+      setStartSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const res = await searchLocationInIndia(val);
+      setStartSuggestions(res || []);
+    }, 300);
+    setStartTimer(timer);
+  };
+
+  const [destTimer, setDestTimer] = useState(null);
+  const handleDestChange = (val) => {
+    handlePostInputChange('destination', val);
+    setDestSelected(false);
+    if (destTimer) clearTimeout(destTimer);
+    if (!val.trim()) {
+      setDestSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const res = await searchLocationInIndia(val);
+      setDestSuggestions(res || []);
+    }, 300);
+    setDestTimer(timer);
+  };
+
+  const [meetTimer, setMeetTimer] = useState(null);
+  const handleMeetChange = (val) => {
+    handlePostInputChange('meetingPoint', val);
+    setMeetSelected(false);
+    if (meetTimer) clearTimeout(meetTimer);
+    if (!val.trim()) {
+      setMeetSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const res = await searchLocationInIndia(val);
+      setMeetSuggestions(res || []);
+    }, 300);
+    setMeetTimer(timer);
+  };
+
+  const handleJoinPhoneChange = (val) => {
+    const clean = val.replace(/[^0-9]/g, '').slice(0, 10);
+    handleJoinInputChange('phone', clean);
+  };
   const [notifications, setNotifications] = useState([]);
   const [activeNotification, setActiveNotification] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
@@ -106,6 +217,7 @@ export default function LetsRide({ user }) {
           creatorEmail: '',
           title: r.title,
           route: r.route,
+          meetingPoint: r.meeting_point || '',
           date: r.date,
           time: r.time,
           distance: r.distance,
@@ -138,10 +250,52 @@ export default function LetsRide({ user }) {
   // Submit Post a Ride
   const handlePostSubmit = async (e) => {
     e.preventDefault();
-    if (!newRide.title || !newRide.startPoint || !newRide.destination || !newRide.date || !newRide.time) {
+    if (!newRide.title || !newRide.startPoint || !newRide.destination || !newRide.meetingPoint || !newRide.date || !newRide.time) {
       showToast('⚠️ Please fill out all required details.');
       return;
     }
+
+    // Strict Location Autocomplete Verification
+    let finalStartSelected = startSelected;
+    let finalDestSelected = destSelected;
+    let finalMeetSelected = meetSelected;
+
+    if (!finalStartSelected) {
+      const query = newRide.startPoint.trim().toLowerCase();
+      const match = INDIAN_CITIES.some(c => c.name.toLowerCase() === query);
+      if (match) finalStartSelected = true;
+    }
+    if (!finalDestSelected) {
+      const query = newRide.destination.trim().toLowerCase();
+      const match = INDIAN_CITIES.some(c => c.name.toLowerCase() === query);
+      if (match) finalDestSelected = true;
+    }
+    if (!finalMeetSelected && newRide.meetingPoint) {
+      const query = newRide.meetingPoint.trim().toLowerCase();
+      const match = INDIAN_CITIES.some(c => c.name.toLowerCase() === query);
+      if (match) finalMeetSelected = true;
+    }
+
+    if (!finalStartSelected) {
+      showToast('⚠️ Please select a valid Start Point from the suggestions list.');
+      return;
+    }
+    if (!finalDestSelected) {
+      showToast('⚠️ Please select a valid Destination from the suggestions list.');
+      return;
+    }
+    if (!finalMeetSelected) {
+      showToast('⚠️ Please select a valid Meeting Point from the suggestions list.');
+      return;
+    }
+
+    // Distance digits-only validation & formatting
+    const rawDistanceDigits = newRide.distance.replace(/[^0-9]/g, '');
+    if (!rawDistanceDigits) {
+      showToast('⚠️ Please enter an estimated distance in numbers only.');
+      return;
+    }
+    const finalDistance = `${rawDistanceDigits} KM`;
 
     const routeStr = `${newRide.startPoint} ➔ ${newRide.destination}`;
     const formattedTime = formatTime12hr(newRide.time);
@@ -196,6 +350,28 @@ export default function LetsRide({ user }) {
       return;
     }
 
+    // Check cancellation penalty
+    if (!editingSocialRide && user && user.uid) {
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('penalty_until')
+          .eq('id', user.uid)
+          .maybeSingle();
+        
+        if (profile && profile.penalty_until) {
+          const penaltyTime = new Date(profile.penalty_until).getTime();
+          if (penaltyTime > Date.now()) {
+            const formattedDate = new Date(profile.penalty_until).toLocaleString();
+            showToast(`⚠️ Penalty Active: You cannot create new rides until ${formattedDate} because you cancelled a previously scheduled ride.`);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to verify penalty status:', err);
+      }
+    }
+
     // Check Posting Limits (only for new posts, not edits)
     if (!editingSocialRide && user) {
       const myRides = rides.filter(r => r.user_id === user.uid && r.created_at);
@@ -231,9 +407,10 @@ export default function LetsRide({ user }) {
           .update({
             title: newRide.title,
             route: routeStr,
+            meeting_point: newRide.meetingPoint,
             date: newRide.date,
             time: formattedTime,
-            distance: newRide.distance,
+            distance: finalDistance,
             bike_type: newRide.bikeType,
             description: newRide.description,
             max_slots: newRide.maxSlots ? parseInt(newRide.maxSlots, 10) : 50
@@ -253,9 +430,10 @@ export default function LetsRide({ user }) {
           creator_phone: user ? (user.phone || '+91 99009 90099') : '+91 99009 90099',
           title: newRide.title,
           route: routeStr,
+          meeting_point: newRide.meetingPoint,
           date: newRide.date,
           time: formattedTime,
-          distance: newRide.distance,
+          distance: finalDistance,
           bike_type: newRide.bikeType,
           description: newRide.description,
           max_slots: newRide.maxSlots ? parseInt(newRide.maxSlots, 10) : 50,
@@ -283,13 +461,17 @@ export default function LetsRide({ user }) {
       title: '',
       startPoint: '',
       destination: '',
+      meetingPoint: '',
       date: '',
-      time: '',
+      time: '12:00 AM',
       distance: '',
-      bikeType: 'All Bikes Welcome',
+      bikeType: 'Any Bike',
       description: '',
       maxSlots: 50
     });
+    setStartSelected(false);
+    setDestSelected(false);
+    setMeetSelected(false);
   };
 
   const handleEditClick = (ride) => {
@@ -299,13 +481,17 @@ export default function LetsRide({ user }) {
       title: ride.title || '',
       startPoint: routeParts[0] || '',
       destination: routeParts[1] || '',
+      meetingPoint: ride.meetingPoint || '',
       date: ride.date || '',
       time: convert12hrTo24hr(ride.time) || '',
-      distance: ride.distance || '',
-      bikeType: ride.bikeType || 'All Bikes Welcome',
+      distance: ride.distance ? ride.distance.replace(/[^0-9]/g, '') : '',
+      bikeType: ride.bikeType || 'Any Bike',
       description: ride.description || '',
       maxSlots: ride.maxSlots || 50
     });
+    setStartSelected(true);
+    setDestSelected(true);
+    setMeetSelected(true);
     setShowPostModal(true);
   };
 
@@ -361,16 +547,14 @@ export default function LetsRide({ user }) {
       }
     }
 
-    const cleanPhone = joinForm.phone.replace(/[\s\-()]/g, '');
-    const indianPhoneRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
+    const cleanPhone = joinForm.phone.trim();
+    const indianPhoneRegex = /^[6-9]\d{9}$/;
     if (!indianPhoneRegex.test(cleanPhone)) {
-      showToast('⚠️ Please enter a valid 10-digit Indian phone number.');
+      showToast('⚠️ Please enter a valid 10-digit Indian mobile number (e.g. 9988776655).');
       return;
     }
 
-    // Repeated digits check (reject numbers like 9999999999)
-    const rawNumber = cleanPhone.startsWith('+91') ? cleanPhone.substring(3) : cleanPhone.startsWith('91') && cleanPhone.length === 12 ? cleanPhone.substring(2) : cleanPhone.startsWith('0') ? cleanPhone.substring(1) : cleanPhone;
-    if (new Set(rawNumber).size === 1) {
+    if (new Set(cleanPhone).size === 1) {
       showToast('⚠️ Repeated/fancy phone numbers are not allowed.');
       return;
     }
@@ -475,6 +659,54 @@ export default function LetsRide({ user }) {
     }
   };
 
+  const handleCancelRideConfirm = async () => {
+    if (!confirmCancelRide) return;
+    const ride = confirmCancelRide;
+    try {
+      // 1. Send system cancellation notifications (as messages) to all accepted members
+      const joinedRiders = (ride.joinRequests || []).filter(req => req.status === 'Accepted' && req.user_id);
+      if (joinedRiders.length > 0 && user?.uid) {
+        for (const rider of joinedRiders) {
+          try {
+            await supabase.from('messages').insert({
+              sender_id: user.uid,
+              receiver_id: rider.user_id,
+              content: `🚨 SYSTEM NOTICE: The community ride "${ride.title}" scheduled for ${ride.date} has been CANCELLED by the host. Please check other rides.`
+            });
+          } catch (msgErr) {
+            console.warn('Failed to insert message notification for cancellation:', msgErr);
+          }
+        }
+      }
+
+      // 2. Set penalty for the host (7 days from now) in their profile
+      if (user?.uid) {
+        const penaltyDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        const { error: profileErr } = await supabase
+          .from('profiles')
+          .update({ penalty_until: penaltyDate })
+          .eq('id', user.uid);
+        
+        if (profileErr) throw profileErr;
+      }
+
+      // 3. Delete the ride from the database
+      const { error: deleteErr } = await supabase
+        .from('rides')
+        .delete()
+        .eq('id', ride.id);
+
+      if (deleteErr) throw deleteErr;
+
+      showToast('🚫 Ride cancelled. 7-day posting penalty applied.');
+      fetchCommunityRides();
+    } catch (err) {
+      showToast('❌ Failed to cancel ride: ' + err.message);
+    } finally {
+      setConfirmCancelRide(null);
+    }
+  };
+
   return (
     <div className="lets-ride-section scroll-y" style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: '20px', height: '100%' }}>
       
@@ -528,7 +760,27 @@ export default function LetsRide({ user }) {
 
       {/* Feed List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>
-        <h3 style={{ fontSize: '16px', color: 'white', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '8px' }}>Active Ride Posts</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '8px' }}>
+          <h3 style={{ fontSize: '16px', color: 'white', margin: 0 }}>Active Ride Posts</h3>
+          <button 
+            onClick={fetchCommunityRides} 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '4px', 
+              fontSize: '11px', 
+              color: 'var(--primary)', 
+              background: 'rgba(255,85,0,0.06)', 
+              border: '1px solid rgba(255,85,0,0.15)', 
+              padding: '4px 10px', 
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: '600'
+            }}
+          >
+            <RotateCw size={11} /> Refresh Feed
+          </button>
+        </div>
         
         {rides.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
@@ -550,9 +802,14 @@ export default function LetsRide({ user }) {
 
                 <h4 style={{ fontSize: '16px', color: 'white', fontWeight: 'bold', marginBottom: '6px' }}>{ride.title}</h4>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
                   <MapPin size={13} color="var(--primary)" /> {ride.route}
                 </div>
+                {ride.meetingPoint && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#00b0ff', marginBottom: '10px', background: 'rgba(0,176,255,0.05)', padding: '4px 8px', borderRadius: '6px', width: 'fit-content' }}>
+                    <span style={{ fontWeight: '600' }}>📍 Meetup:</span> {ride.meetingPoint}
+                  </div>
+                )}
 
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.4', marginBottom: '14px' }}>
                   {ride.description}
@@ -586,13 +843,22 @@ export default function LetsRide({ user }) {
                       <h5 style={{ fontSize: '12px', color: 'white', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         👥 Join Requests ({ride.joinRequests ? ride.joinRequests.length : 0})
                       </h5>
-                      <button 
-                        className="btn-secondary" 
-                        style={{ padding: '3px 8px', fontSize: '10px', borderRadius: '6px', background: 'rgba(255,85,0,0.1)', borderColor: 'rgba(255,85,0,0.2)', color: 'var(--primary)' }}
-                        onClick={() => handleEditClick(ride)}
-                      >
-                        ✏️ Edit Post
-                      </button>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button 
+                          className="btn-secondary" 
+                          style={{ padding: '3px 8px', fontSize: '10px', borderRadius: '6px', background: 'rgba(255,85,0,0.1)', borderColor: 'rgba(255,85,0,0.2)', color: 'var(--primary)' }}
+                          onClick={() => handleEditClick(ride)}
+                        >
+                          ✏️ Edit Post
+                        </button>
+                        <button 
+                          className="btn-secondary" 
+                          style={{ padding: '3px 8px', fontSize: '10px', borderRadius: '6px', background: 'rgba(255,34,51,0.1)', borderColor: 'rgba(255,34,51,0.2)', color: 'var(--accent)', cursor: 'pointer' }}
+                          onClick={() => setConfirmCancelRide(ride)}
+                        >
+                          🚫 Cancel Ride
+                        </button>
+                      </div>
                     </div>
                     {(!ride.joinRequests || ride.joinRequests.length === 0) ? (
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No requests to join yet.</div>
@@ -749,13 +1015,17 @@ export default function LetsRide({ user }) {
                     title: '',
                     startPoint: '',
                     destination: '',
+                    meetingPoint: '',
                     date: '',
-                    time: '',
+                    time: '12:00 AM',
                     distance: '',
-                    bikeType: 'All Bikes Welcome',
+                    bikeType: 'Any Bike',
                     description: '',
                     maxSlots: 50
                   });
+                  setStartSelected(false);
+                  setDestSelected(false);
+                  setMeetSelected(false);
                 }} 
                 style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}
               >
@@ -777,31 +1047,103 @@ export default function LetsRide({ user }) {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <div>
+                <div style={{ position: 'relative' }}>
                   <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Start Point *</label>
                   <input 
                     type="text" 
                     required
                     placeholder="e.g. Gachibowli"
                     value={newRide.startPoint}
-                    onChange={(e) => handlePostInputChange('startPoint', e.target.value)}
+                    onChange={(e) => handleStartChange(e.target.value)}
+                    onBlur={() => {
+                      setTimeout(() => setStartSuggestions([]), 200);
+                    }}
                     style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
                   />
+                  {startSuggestions.length > 0 && (
+                    <div style={suggestionDropdownStyle}>
+                      {startSuggestions.map((item, idx) => (
+                        <div
+                          key={idx}
+                          onMouseDown={() => {
+                            handlePostInputChange('startPoint', item.name);
+                            setStartSelected(true);
+                            setStartSuggestions([]);
+                          }}
+                          style={suggestionItemStyle(idx, startSuggestions.length)}
+                        >
+                          📍 {item.name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div>
+                <div style={{ position: 'relative' }}>
                   <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Destination *</label>
                   <input 
                     type="text" 
                     required
                     placeholder="e.g. Vikarabad"
                     value={newRide.destination}
-                    onChange={(e) => handlePostInputChange('destination', e.target.value)}
+                    onChange={(e) => handleDestChange(e.target.value)}
+                    onBlur={() => {
+                      setTimeout(() => setDestSuggestions([]), 200);
+                    }}
                     style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
                   />
+                  {destSuggestions.length > 0 && (
+                    <div style={suggestionDropdownStyle}>
+                      {destSuggestions.map((item, idx) => (
+                        <div
+                          key={idx}
+                          onMouseDown={() => {
+                            handlePostInputChange('destination', item.name);
+                            setDestSelected(true);
+                            setDestSuggestions([]);
+                          }}
+                          style={suggestionItemStyle(idx, destSuggestions.length)}
+                        >
+                          📍 {item.name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <div style={{ position: 'relative' }}>
+                <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Meeting Point Location *</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="e.g. Decathlon Gachibowli or HP petrol pump"
+                  value={newRide.meetingPoint}
+                  onChange={(e) => handleMeetChange(e.target.value)}
+                  onBlur={() => {
+                    setTimeout(() => setMeetSuggestions([]), 200);
+                  }}
+                  style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
+                />
+                {meetSuggestions.length > 0 && (
+                  <div style={suggestionDropdownStyle}>
+                    {meetSuggestions.map((item, idx) => (
+                      <div
+                        key={idx}
+                        onMouseDown={() => {
+                          handlePostInputChange('meetingPoint', item.name);
+                          setMeetSelected(true);
+                          setMeetSuggestions([]);
+                        }}
+                        style={suggestionItemStyle(idx, meetSuggestions.length)}
+                      >
+                        📍 {item.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '8px' }}>
                 <div>
                   <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Date *</label>
                   <input 
@@ -814,37 +1156,80 @@ export default function LetsRide({ user }) {
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Time *</label>
-                  <input 
-                    type="time" 
-                    required
-                    value={newRide.time}
-                    onChange={(e) => handlePostInputChange('time', e.target.value)}
-                    style={{ width: '100%', fontSize: '13px', background: '#1c1c24', color: 'white', padding: '10px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}
-                  />
+                  <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Time (AM/PM) *</label>
+                  {(() => {
+                    const timeParts = parseTimeParts(newRide.time || '12:00 AM');
+                    return (
+                      <div style={{ display: 'flex', gap: '4px', width: '100%' }}>
+                        <select
+                          value={timeParts.hour}
+                          onChange={(e) => {
+                            const parts = parseTimeParts(newRide.time || '12:00 AM');
+                            const newTime = `${e.target.value}:${parts.minute.padStart(2, '0')} ${parts.period}`;
+                            handlePostInputChange('time', newTime);
+                          }}
+                          style={{ flex: 1, padding: '10px 4px', fontSize: '12px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}
+                        >
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
+                            <option key={h} value={h.toString()}>{h}</option>
+                          ))}
+                        </select>
+
+                        <select
+                          value={timeParts.minute}
+                          onChange={(e) => {
+                            const parts = parseTimeParts(newRide.time || '12:00 AM');
+                            const newTime = `${parts.hour}:${e.target.value.padStart(2, '0')} ${parts.period}`;
+                            handlePostInputChange('time', newTime);
+                          }}
+                          style={{ flex: 1.1, padding: '10px 4px', fontSize: '12px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}
+                        >
+                          {Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0')).map(m => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+
+                        <select
+                          value={timeParts.period}
+                          onChange={(e) => {
+                            const parts = parseTimeParts(newRide.time || '12:00 AM');
+                            const newTime = `${parts.hour}:${parts.minute.padStart(2, '0')} ${e.target.value}`;
+                            handlePostInputChange('time', newTime);
+                          }}
+                          style={{ flex: 1, padding: '10px 4px', fontSize: '12px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}
+                        >
+                          <option value="AM">AM</option>
+                          <option value="PM">PM</option>
+                        </select>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 <div>
-                  <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Est Distance (Optional)</label>
+                  <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Est Distance (KMs only) *</label>
                   <input 
                     type="text" 
-                    placeholder="e.g. 120 KM"
+                    required
+                    placeholder="e.g. 120"
                     value={newRide.distance}
-                    onChange={(e) => handlePostInputChange('distance', e.target.value)}
+                    onChange={(e) => handlePostInputChange('distance', e.target.value.replace(/[^0-9]/g, ''))}
                     style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Bikes Preferred</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Cruiser or Open class"
+                  <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Bikes Preferred *</label>
+                  <select
                     value={newRide.bikeType}
                     onChange={(e) => handlePostInputChange('bikeType', e.target.value)}
-                    style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
-                  />
+                    style={{ width: '100%', padding: '10px 12px', fontSize: '13px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px' }}
+                  >
+                    <option value="100cc to 500cc">100cc to 500cc</option>
+                    <option value="500cc to 1200cc">500cc to 1200cc</option>
+                    <option value="Any Bike">Any Bike</option>
+                  </select>
                 </div>
               </div>
 
@@ -859,7 +1244,8 @@ export default function LetsRide({ user }) {
                     placeholder="e.g. 50"
                     value={newRide.maxSlots}
                     onChange={(e) => {
-                      let val = parseInt(e.target.value, 10);
+                      const clean = e.target.value.replace(/[^0-9]/g, '');
+                      let val = parseInt(clean, 10);
                       if (val > 50) val = 50;
                       if (val < 1) val = 1;
                       handlePostInputChange('maxSlots', isNaN(val) ? '' : val);
@@ -909,7 +1295,7 @@ export default function LetsRide({ user }) {
                   required
                   placeholder="Enter your name"
                   value={joinForm.name}
-                  onChange={(e) => handleJoinInputChange('name', e.target.value)}
+                  onChange={(e) => handleJoinInputChange('name', e.target.value.replace(/[^A-Za-z ]/g, ''))}
                   style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
                 />
               </div>
@@ -984,13 +1370,14 @@ export default function LetsRide({ user }) {
               </div>
 
               <div>
-                <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Contact Number</label>
+                <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Contact Number (10 digits) *</label>
                 <input 
-                  type="tel" 
+                  type="text" 
                   required
-                  placeholder="e.g. +91 99999 88888"
+                  maxLength={10}
+                  placeholder="e.g. 9988776655"
                   value={joinForm.phone}
-                  onChange={(e) => handleJoinInputChange('phone', e.target.value)}
+                  onChange={(e) => handleJoinPhoneChange(e.target.value)}
                   style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
                 />
               </div>
@@ -999,11 +1386,12 @@ export default function LetsRide({ user }) {
                 <div>
                   <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Age</label>
                   <input 
-                    type="number" 
+                    type="text" 
                     required
+                    maxLength={3}
                     placeholder="e.g. 26"
                     value={joinForm.age}
-                    onChange={(e) => handleJoinInputChange('age', e.target.value)}
+                    onChange={(e) => handleJoinInputChange('age', e.target.value.replace(/[^0-9]/g, ''))}
                     style={{ width: '100%', fontSize: '13px', background: '#1c1c24' }}
                   />
                 </div>
@@ -1081,6 +1469,36 @@ export default function LetsRide({ user }) {
         >
           <span style={{ fontSize: '18px' }}>🏍️</span>
           <span>{toastMessage}</span>
+        </div>
+      )}
+      {/* Cancellation confirmation modal */}
+      {confirmCancelRide && (
+        <div className="bottom-sheet-overlay animate-fade-in" style={{ zIndex: 130, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="glass-panel animate-zoom-in" style={{ width: '90%', maxWidth: '360px', padding: '24px 20px', background: '#121217', borderColor: 'var(--accent)', textAlign: 'center', boxShadow: '0 8px 32px rgba(255,34,51,0.25)', borderRadius: '20px' }}>
+            <AlertTriangle size={40} color="var(--accent)" style={{ margin: '0 auto 12px' }} />
+            <h3 style={{ fontSize: '16px', color: 'white', marginBottom: '8px', fontFamily: 'var(--font-display)' }}>Cancel Ride Post?</h3>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5', marginBottom: '18px' }}>
+              Are you sure you want to cancel <strong>"{confirmCancelRide.title}"</strong>? 
+              <br/><br/>
+              <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>⚠️ PENALTY WARNING:</span> If you cancel, you will be penalized and <strong>cannot create any new rides for the next 7 days</strong>. All joined members will be notified.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                className="btn-secondary" 
+                style={{ flex: 1, padding: '8px', fontSize: '12px' }} 
+                onClick={() => setConfirmCancelRide(null)}
+              >
+                No, Keep It
+              </button>
+              <button 
+                className="btn-primary" 
+                style={{ flex: 1.5, padding: '8px', fontSize: '12px', background: 'linear-gradient(135deg, var(--accent) 0%, #d32f2f 100%)', border: 'none', color: 'white' }} 
+                onClick={handleCancelRideConfirm}
+              >
+                Yes, Cancel & Penalize
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -65,6 +65,7 @@ export default function LoginScreen({ onLoginSuccess }) {
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [recoveryUniqueId, setRecoveryUniqueId] = useState('');
+  const [recoveryPin, setRecoveryPin] = useState('');
   
   const [showPassword, setShowPassword] = useState(false);
   const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
@@ -275,6 +276,12 @@ export default function LoginScreen({ onLoginSuccess }) {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !mobileNumber || !fullName || !password) {
       setError('Please fill in all fields (Name, Email, Mobile, and Password)');
+      return;
+    }
+
+    const nameRegex = /^[A-Za-z ]+$/;
+    if (!nameRegex.test(fullName.trim())) {
+      setError('Please enter a valid full name containing letters and spaces only');
       return;
     }
 
@@ -622,11 +629,12 @@ export default function LoginScreen({ onLoginSuccess }) {
       }
       const formattedMobile = `+91 ${normalizedMobile}`;
 
-      // Call secure database function (verifies Email & Mobile matching)
+      // Call secure database function (verifies Email, Mobile, & Security Recovery PIN matching)
       const { data: isSuccess, error: rpcError } = await supabase.rpc('recover_user_password', {
         p_email: cleanEmail,
         p_mobile: formattedMobile,
-        p_new_password: newPassword
+        p_new_password: newPassword,
+        p_pin: recoveryPin || null
       });
 
       if (rpcError) throw rpcError;
@@ -636,8 +644,9 @@ export default function LoginScreen({ onLoginSuccess }) {
         setFlowState('SIGN_IN');
         setPassword(newPassword); // fill password box automatically for helper
         setMobileNumber('');
+        setRecoveryPin('');
       } else {
-        setError('❌ Recovery Failed: No matching biker account found. Please check your Email and Mobile Number.');
+        setError('❌ Recovery Failed: No matching biker account found. Please check your Email, Mobile Number, or Security Recovery PIN.');
       }
     } catch (err) {
       setError(err.message || 'Failed to execute password recovery.');
@@ -932,7 +941,7 @@ export default function LoginScreen({ onLoginSuccess }) {
             {/* Full Name */}
             <div style={{ position: 'relative', width: '100%' }}>
               <User size={16} style={iconAbsStyle} />
-              <input type="text" placeholder="Full Name" value={fullName} onChange={(e) => { setFullName(e.target.value); setError(''); }} onFocus={handleFocus} onBlur={handleBlur} style={inputStyle} required />
+              <input type="text" placeholder="Full Name" value={fullName} onChange={(e) => { setFullName(e.target.value.replace(/[^A-Za-z ]/g, '')); setError(''); }} onFocus={handleFocus} onBlur={handleBlur} style={inputStyle} required />
             </div>
 
             {/* Email */}
@@ -944,7 +953,7 @@ export default function LoginScreen({ onLoginSuccess }) {
             {/* Mobile */}
             <div style={{ position: 'relative', width: '100%' }}>
               <Phone size={16} style={iconAbsStyle} />
-              <input type="tel" placeholder="Mobile Number (e.g. 9876543210)" value={mobileNumber} onChange={(e) => { setMobileNumber(e.target.value.replace(/\D/g, '')); setError(''); }} onFocus={handleFocus} onBlur={handleBlur} style={inputStyle} required />
+              <input type="tel" placeholder="Mobile Number (e.g. 9876543210)" value={mobileNumber} onChange={(e) => { setMobileNumber(e.target.value.replace(/\D/g, '').slice(0, 10)); setError(''); }} onFocus={handleFocus} onBlur={handleBlur} style={inputStyle} maxLength={10} required />
             </div>
 
             {/* Password */}
@@ -1118,15 +1127,31 @@ export default function LoginScreen({ onLoginSuccess }) {
                 type="tel"
                 placeholder="Registered Mobile (e.g. 9876543210)"
                 value={mobileNumber}
-                onChange={(e) => { setMobileNumber(e.target.value.replace(/\D/g, '')); setError(''); }}
+                onChange={(e) => { setMobileNumber(e.target.value.replace(/\D/g, '').slice(0, 10)); setError(''); }}
                 onFocus={handleFocus}
                 onBlur={handleBlur}
                 style={inputStyle}
+                maxLength={10}
                 required
               />
             </div>
 
-
+            {/* Security Recovery PIN (Optional/If Configured) */}
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Lock size={16} style={iconAbsStyle} />
+              <input
+                type="password"
+                pattern="[0-9]*"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="Security Recovery PIN (leave blank if not set)"
+                value={recoveryPin}
+                onChange={(e) => { setRecoveryPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 4)); setError(''); }}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                style={inputStyle}
+              />
+            </div>
 
             {/* New Password Input */}
             <div style={{ position: 'relative', width: '100%' }}>
@@ -1351,8 +1376,8 @@ export default function LoginScreen({ onLoginSuccess }) {
                 {devError}
               </div>
             )}
-            <input type="text" placeholder="Your Full Name" value={devName} onChange={e => { setDevName(e.target.value); setDevError(''); }} required style={inputStyle} />
-            <input type="tel" placeholder="Working Mobile Number (10 digits)" value={devMobile} onChange={e => { setDevMobile(e.target.value.replace(/\D/g, '').slice(0, 10)); setDevError(''); }} required style={inputStyle} />
+            <input type="text" placeholder="Your Full Name" value={devName} onChange={e => { setDevName(e.target.value.replace(/[^A-Za-z ]/g, '')); setDevError(''); }} required style={inputStyle} />
+            <input type="tel" placeholder="Working Mobile Number (10 digits)" value={devMobile} onChange={e => { setDevMobile(e.target.value.replace(/\D/g, '').slice(0, 10)); setDevError(''); }} required style={inputStyle} maxLength={10} />
             <div style={{ display: 'flex', gap: '8px' }}>
               <button type="button" onClick={() => setShowDevForm(false)} className="btn-secondary" style={{ flex: 1, padding: '10px', fontSize: '12px' }}>
                 Cancel

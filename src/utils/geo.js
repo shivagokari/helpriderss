@@ -769,7 +769,16 @@ export function generateGoogleMapsLink(start, dest, stops = "") {
 
 export function getCustomBikes() {
   try {
-    const list = localStorage.getItem('helpriders_custom_bikes');
+    let uid = '';
+    const sessionStr = localStorage.getItem('helpriders_session') || sessionStorage.getItem('helpriders_session');
+    if (sessionStr) {
+      const session = JSON.parse(sessionStr);
+      if (session && session.uid) {
+        uid = session.uid;
+      }
+    }
+    const key = uid ? `helpriders_custom_bikes_${uid}` : 'helpriders_custom_bikes';
+    const list = localStorage.getItem(key);
     return list ? JSON.parse(list) : [];
   } catch (e) {
     return [];
@@ -786,7 +795,17 @@ export function saveCustomBike(name) {
     if (!exists) {
       const newBike = { name: trimmed, cityMileage: 30, highwayMileage: 35, fuelPreference: "normal", type: "Custom Biker Machine" };
       list.push(newBike);
-      localStorage.setItem('helpriders_custom_bikes', JSON.stringify(list));
+      
+      let uid = '';
+      const sessionStr = localStorage.getItem('helpriders_session') || sessionStorage.getItem('helpriders_session');
+      if (sessionStr) {
+        const session = JSON.parse(sessionStr);
+        if (session && session.uid) {
+          uid = session.uid;
+        }
+      }
+      const key = uid ? `helpriders_custom_bikes_${uid}` : 'helpriders_custom_bikes';
+      localStorage.setItem(key, JSON.stringify(list));
       return newBike;
     }
   } catch (e) {

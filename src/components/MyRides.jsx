@@ -132,7 +132,7 @@ const isRideTimePassed = (ride) => {
   return now > rideEndDateTime;
 };
 
-export default function MyRides({ rides, onOpenReplay, onEditRide, onDeleteRide, onToggleFavoriteRide, onCompleteRide }) {
+export default function MyRides({ user, rides, onOpenReplay, onEditRide, onDeleteRide, onToggleFavoriteRide, onCompleteRide }) {
   const [filter, setFilter] = useState('All'); // All, Upcoming, Completed, Saved
   const [expandedRideId, setExpandedRideId] = useState(null);
   const [confirmDeleteRideId, setConfirmDeleteRideId] = useState(null);
@@ -140,13 +140,23 @@ export default function MyRides({ rides, onOpenReplay, onEditRide, onDeleteRide,
   const [hoverRating, setHoverRating] = useState(0);
   const [selectedRating, setSelectedRating] = useState(0);
   const [localRatings, setLocalRatings] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('helpriders_ride_ratings') || '{}'); } catch { return {}; }
+    if (user && user.uid) {
+      try {
+        const saved = localStorage.getItem(`helpriders_ride_ratings_${user.uid}`);
+        return saved ? JSON.parse(saved) : {};
+      } catch {
+        return {};
+      }
+    }
+    return {};
   });
 
   const saveRating = (rideId, rating) => {
     const updated = { ...localRatings, [rideId]: rating };
     setLocalRatings(updated);
-    localStorage.setItem('helpriders_ride_ratings', JSON.stringify(updated));
+    if (user && user.uid) {
+      localStorage.setItem(`helpriders_ride_ratings_${user.uid}`, JSON.stringify(updated));
+    }
   };
 
 

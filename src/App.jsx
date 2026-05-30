@@ -172,13 +172,7 @@ export default function App() {
     }
     localStorage.removeItem('helpriders_session');
     sessionStorage.removeItem('helpriders_session');
-    localStorage.removeItem('helpriders_reminders');
-    localStorage.removeItem('helpriders_essentials');
-    localStorage.removeItem('helpriders_ride_ratings');
     localStorage.removeItem('helpriders_first_login');
-    localStorage.removeItem('helpriders_custom_bikes');
-    localStorage.removeItem('helpriders_last_dev_contact');
-    localStorage.removeItem('helpriders_weather_cache');
     setCustomRides([]);
     setUser(null);
     setActiveTab('home');
@@ -350,6 +344,7 @@ export default function App() {
           
           {activeTab === 'my-rides' && (
             <MyRides 
+              user={user}
               rides={customRides} 
               onOpenReplay={(ride) => {
                 setReplaySheetRide(ride);
@@ -368,7 +363,13 @@ export default function App() {
           {activeTab === 'lets-ride' && <LetsRide user={user} />}
           
           {activeTab === 'profile' && (
-            <Profile user={user} onLogout={handleLogout} rides={customRides} />
+            <Profile 
+              user={user} 
+              onLogout={handleLogout} 
+              rides={customRides} 
+              onInstallApp={handleInstallClick} 
+              isInstallable={!!deferredPrompt} 
+            />
           )}
         </Suspense>
       </div>

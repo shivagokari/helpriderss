@@ -1755,11 +1755,12 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                             Manual Bike Mileage (km/l, Optional)
                           </label>
                           <input 
-                            type="number" 
+                            type="text" 
+                            inputMode="numeric"
                             placeholder="e.g. 35 (leave blank to use company claimed)" 
                             value={formData.manualMileage || ''}
                             onChange={(e) => {
-                              const val = e.target.value === '' ? '' : parseFloat(e.target.value);
+                              const val = e.target.value.replace(/[^0-9]/g, '');
                               handleInputChange('manualMileage', val);
                             }}
                             onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}

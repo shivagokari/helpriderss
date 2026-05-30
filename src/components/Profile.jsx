@@ -3,7 +3,8 @@ import {
   Award, Bike, PhoneCall, ShieldAlert, 
   LogOut, Plus, Trash2,
   Camera, MessageSquare, Send, X, MapPin, Headphones,
-  Copy, UserPlus, Search, Check, Ban, Bell, Share2, ChevronRight, Users
+  Copy, UserPlus, Search, Check, Ban, Bell, Share2, ChevronRight, Users,
+  Download, Lock
 } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import { BIKES_DATABASE } from '../utils/geo';
@@ -12,7 +13,7 @@ import { BIKES_DATABASE } from '../utils/geo';
 const inputStyle = { width: '100%', padding: '10px 12px', fontSize: '13px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', boxSizing: 'border-box' };
 const smallInputStyle = { flex: 1, padding: '8px 10px', fontSize: '11px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', boxSizing: 'border-box', minWidth: '0' };
 
-export default function Profile({ user, onLogout, rides }) {
+export default function Profile({ user, onLogout, rides, onInstallApp, isInstallable }) {
   // ── Avatar ────────────────────────────────────────────────────────────────
   const [avatar, setAvatar] = useState(null);
   const fileInputRef = useRef(null);
@@ -68,6 +69,8 @@ export default function Profile({ user, onLogout, rides }) {
   const [emergencyContacts, setEmergencyContacts] = useState([]);
   const [newContactName, setNewContactName] = useState('');
   const [newContactPhone, setNewContactPhone] = useState('');
+  const [securityPin, setSecurityPin] = useState('');
+  const [savingPin, setSavingPin] = useState(false);
 
   // Fetch all profile details from Supabase on mount
   useEffect(() => {
@@ -76,7 +79,7 @@ export default function Profile({ user, onLogout, rides }) {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('garage, emergency_contacts, avatar_url, unique_id')
+          .select('garage, emergency_contacts, avatar_url, unique_id, security_pin')
           .eq('id', user.uid)
           .maybeSingle();
 
@@ -86,6 +89,7 @@ export default function Profile({ user, onLogout, rides }) {
           setEmergencyContacts(data.emergency_contacts || []);
           setAvatar(data.avatar_url || null);
           if (data.unique_id) setUniqueId(data.unique_id);
+          if (data.security_pin) setSecurityPin(data.security_pin);
           if (data.garage && data.garage.length > 0) {
             setActiveBike(data.garage[0].name);
           }
@@ -124,8 +128,23 @@ export default function Profile({ user, onLogout, rides }) {
 
   const handleAddContact = async (e) => {
     e.preventDefault();
-    if (!newContactName.trim() || !newContactPhone.trim()) return;
-    const updatedContacts = [...emergencyContacts, { name: newContactName.trim(), phone: newContactPhone.trim() }];
+    const name = newContactName.trim();
+    const phone = newContactPhone.trim();
+    if (!name || !phone) {
+      showToast('⚠️ Please fill out all fields.');
+      return;
+    }
+    const nameRegex = /^[A-Za-z ]+$/;
+    if (!nameRegex.test(name)) {
+      showToast('⚠️ Name must contain letters and spaces only.');
+      return;
+    }
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (!phoneRegex.test(phone)) {
+      showToast('⚠️ Phone number must be a valid 10-digit Indian mobile number.');
+      return;
+    }
+    const updatedContacts = [...emergencyContacts, { name, phone }];
     setEmergencyContacts(updatedContacts);
     setNewContactName(''); setNewContactPhone('');
     showToast('✅ Emergency contact saved.');
@@ -140,6 +159,32 @@ export default function Profile({ user, onLogout, rides }) {
     showToast('❌ Contact removed.');
     if (user?.uid) {
       await supabase.from('profiles').update({ emergency_contacts: updatedContacts }).eq('id', user.uid);
+    }
+  };
+
+  const handleSaveSecurityPin = async (e) => {
+    e.preventDefault();
+    if (!securityPin) {
+      showToast('⚠️ Please enter a 4-digit PIN.');
+      return;
+    }
+    if (securityPin.length !== 4 || !/^\d{4}$/.test(securityPin)) {
+      showToast('⚠️ PIN must be exactly 4 digits.');
+      return;
+    }
+    setSavingPin(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ security_pin: securityPin })
+        .eq('id', user.uid);
+      
+      if (error) throw error;
+      showToast('🔒 Security Recovery PIN updated successfully!');
+    } catch (err) {
+      showToast('❌ Failed to update PIN: ' + err.message);
+    } finally {
+      setSavingPin(false);
     }
   };
 
@@ -998,15 +1043,13 @@ export default function Profile({ user, onLogout, rides }) {
             ))}
           </select>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <input type="text" placeholder="Number Plate" value={newBikeNumber} onChange={e => setNewBikeNumber(e.target.value)} style={{ ...smallInputStyle, flex: 1.5 }} />
-            <select value={newBikeType} onChange={e => setNewBikeType(e.target.value)} style={{ ...smallInputStyle, flex: 1 }}>
-              <option>Cruiser</option>
-              <option>Adventure</option>
-              <option>Streetfighter</option>
-              <option>Dual-sport</option>
-              <option>Scooter</option>
-              <option>Sports</option>
-            </select>
+            <input 
+              type="text" 
+              placeholder="Number Plate" 
+              value={newBikeNumber} 
+              onChange={e => setNewBikeNumber(e.target.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase())} 
+              style={{ ...smallInputStyle, flex: 1 }} 
+            />
             <button type="submit" className="btn-primary" style={{ padding: '8px 12px', borderRadius: '8px', flexShrink: 0 }}><Plus size={14} /></button>
           </div>
         </form>
@@ -1042,9 +1085,53 @@ export default function Profile({ user, onLogout, rides }) {
         </div>
 
         <form onSubmit={handleAddContact} style={{ display: 'flex', gap: '8px' }}>
-          <input type="text" placeholder="Name" value={newContactName} onChange={e => setNewContactName(e.target.value)} style={{ ...smallInputStyle, flex: 1.2 }} />
-          <input type="tel" placeholder="Phone" value={newContactPhone} onChange={e => setNewContactPhone(e.target.value)} style={{ ...smallInputStyle, flex: 1.5 }} />
+          <input 
+            type="text" 
+            placeholder="Name" 
+            value={newContactName} 
+            onChange={e => setNewContactName(e.target.value.replace(/[^A-Za-z ]/g, ''))} 
+            style={{ ...smallInputStyle, flex: 1.2 }} 
+          />
+          <input 
+            type="text" 
+            maxLength={10}
+            placeholder="Phone" 
+            value={newContactPhone} 
+            onChange={e => setNewContactPhone(e.target.value.replace(/[^0-9]/g, ''))} 
+            style={{ ...smallInputStyle, flex: 1.5 }} 
+          />
           <button type="submit" className="btn-primary" style={{ padding: '8px 12px', borderRadius: '8px', background: 'linear-gradient(135deg, var(--accent) 0%, #aa0011 100%)', boxShadow: 'none', flexShrink: 0 }}><Plus size={14} /></button>
+        </form>
+      </div>
+
+      {/* Account Security PIN */}
+      <div className="glass-panel" style={{ padding: '16px', marginBottom: '16px', border: '1px solid rgba(255, 85, 0, 0.15)' }}>
+        <h4 style={{ fontSize: '15px', color: 'white', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Lock size={16} color="var(--primary)" style={{ filter: 'drop-shadow(0 0 5px rgba(255, 85, 0, 0.4))' }} /> Account Security PIN
+        </h4>
+        <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: '1.4' }}>
+          Configure a 4-digit Security PIN to lock your account password recovery from unauthorized resets. If set, this PIN will be required to reset your password.
+        </p>
+
+        <form onSubmit={handleSaveSecurityPin} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <input 
+            type="password" 
+            pattern="[0-9]*"
+            inputMode="numeric"
+            maxLength={4}
+            placeholder={securityPin ? "•••• (PIN Configured)" : "Enter 4-digit Recovery PIN"} 
+            value={securityPin} 
+            onChange={e => setSecurityPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))} 
+            style={{ ...smallInputStyle, flex: 1, letterSpacing: '4px', textAlign: 'center', fontSize: '14px', fontWeight: 'bold' }} 
+          />
+          <button 
+            type="submit" 
+            disabled={savingPin}
+            className="btn-primary" 
+            style={{ padding: '10px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', flexShrink: 0 }}
+          >
+            {savingPin ? '...' : 'Save PIN'}
+          </button>
         </form>
       </div>
 
@@ -1149,7 +1236,7 @@ export default function Profile({ user, onLogout, rides }) {
 
               try {
                 const { error } = await supabase.from('dev_contacts').insert({
-                  name: devName.trim(), mobile: devMobile.trim(),
+                  name: devName.trim(), mobile: cleanPhone,
                   email: user?.email || 'Unknown', user_id: user?.uid || null, is_read: false
                 });
                 if (error) { showToast('⚠️ Could not send message. Please try again.'); return; }
@@ -1163,8 +1250,22 @@ export default function Profile({ user, onLogout, rides }) {
             style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
             className="animate-zoom-in"
           >
-            <input type="text" placeholder="Your Full Name" value={devName} onChange={e => setDevName(e.target.value)} required style={inputStyle} />
-            <input type="tel" placeholder="Working Mobile Number (10 digits)" value={devMobile} onChange={e => setDevMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} required style={inputStyle} />
+            <input 
+              type="text" 
+              placeholder="Your Full Name" 
+              value={devName} 
+              onChange={e => setDevName(e.target.value.replace(/[^A-Za-z ]/g, ''))} 
+              required 
+              style={inputStyle} 
+            />
+            <input 
+              type="tel" 
+              placeholder="Working Mobile Number (10 digits)" 
+              value={devMobile} 
+              onChange={e => setDevMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} 
+              required 
+              style={inputStyle} 
+            />
             <div style={{ display: 'flex', gap: '8px' }}>
               <button type="button" onClick={() => setShowDevForm(false)} className="btn-secondary" style={{ flex: 1, padding: '10px', fontSize: '12px' }}>
                 Cancel
@@ -1174,6 +1275,29 @@ export default function Profile({ user, onLogout, rides }) {
               </button>
             </div>
           </form>
+        )}
+      </div>
+
+      {/* PWA Mobile App Download Option */}
+      <div className="glass-panel" style={{ padding: '16px', marginBottom: '16px', background: 'linear-gradient(135deg, rgba(28,28,36,0.6) 0%, rgba(18,18,22,0.9) 100%)' }}>
+        <h4 style={{ fontSize: '14px', color: 'white', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+          <Download size={16} color="var(--primary)" /> Download Mobile App
+        </h4>
+        <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: '1.4', marginBottom: '12px' }}>
+          Install Helpriderss on your home screen for instant access, offline telemetry logs, and faster loading speeds.
+        </p>
+        {isInstallable ? (
+          <button 
+            onClick={onInstallApp}
+            className="btn-primary" 
+            style={{ width: '100%', padding: '10px', fontSize: '12.5px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+          >
+            <Download size={14} /> Install Now
+          </button>
+        ) : (
+          <div style={{ padding: '10px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: '10px', fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>
+            💡 To install: Click the browser menu button (<strong style={{ color: 'white' }}>⋮</strong> or Share icon) and select <strong style={{ color: 'white' }}>"Add to Home Screen"</strong> or <strong style={{ color: 'white' }}>"Install App"</strong>.
+          </div>
         )}
       </div>
 
