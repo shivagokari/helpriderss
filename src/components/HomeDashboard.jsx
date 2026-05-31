@@ -921,23 +921,55 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
           <div style={{ height: '100%', width: `${(essentialsCheckedCount / ESSENTIALS.length) * 100}%`, background: 'linear-gradient(90deg, var(--primary), var(--secondary))', borderRadius: '2px', transition: 'width 0.3s ease' }} />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 6px' }}>
           {ESSENTIALS.map(item => {
             const checked = checkedEssentials.includes(item.id);
             return (
               <button
                 key={item.id}
                 onClick={() => toggleEssential(item.id)}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', background: checked ? 'rgba(0,230,118,0.06)' : 'rgba(255,255,255,0.02)', border: `1px solid ${checked ? 'rgba(0,230,118,0.2)' : 'rgba(255,255,255,0.05)'}`, borderRadius: '8px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s' }}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '6px', 
+                  padding: '6px 8px', 
+                  background: checked ? 'rgba(0,230,118,0.08)' : 'rgba(255,255,255,0.02)', 
+                  border: `1.2px solid ${checked ? 'rgba(0,230,118,0.35)' : 'rgba(255,255,255,0.05)'}`, 
+                  borderRadius: '10px', 
+                  cursor: 'pointer', 
+                  textAlign: 'left', 
+                  transition: 'all 0.2s ease',
+                  minWidth: 0,
+                  width: '100%',
+                  boxSizing: 'border-box'
+                }}
               >
-                <span style={{ fontSize: '16px' }}>{item.label.split(' ')[0]}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ fontSize: '11px', color: checked ? 'var(--success)' : 'white', fontWeight: '600', display: 'block', textDecoration: checked ? 'line-through' : 'none' }}>
+                <span style={{ fontSize: '14px', flexShrink: 0 }}>{item.label.split(' ')[0]}</span>
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ 
+                    fontSize: '10.5px', 
+                    color: checked ? 'var(--success)' : 'white', 
+                    fontWeight: '600', 
+                    display: 'block', 
+                    textDecoration: checked ? 'line-through' : 'none',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
                     {item.label.split(' ').slice(1).join(' ')}
                   </span>
-                  <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{item.desc}</span>
+                  <span style={{ 
+                    fontSize: '8.5px', 
+                    color: 'var(--text-muted)', 
+                    display: 'block', 
+                    overflow: 'hidden', 
+                    whiteSpace: 'nowrap', 
+                    textOverflow: 'ellipsis' 
+                  }}>
+                    {item.desc}
+                  </span>
                 </div>
-                {checked && <CheckSquare size={12} color="var(--success)" />}
+                {checked && <CheckSquare size={11} color="var(--success)" style={{ flexShrink: 0, marginLeft: '2px' }} />}
               </button>
             );
           })}

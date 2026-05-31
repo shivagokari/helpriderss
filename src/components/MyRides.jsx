@@ -4,7 +4,7 @@ import {
   DollarSign, Star, CloudSun, Film, ChevronDown, ChevronUp, Play, ExternalLink,
   Trash2
 } from 'lucide-react';
-import { generateGoogleMapsLink } from '../utils/geo';
+import { generateGoogleMapsLink, calculateRideDuration } from '../utils/geo';
 
 // Clean subcomponent to manage the Leaflet map lifecycle inside an expanded card list
 function ReplayMap({ ride }) {
@@ -30,9 +30,14 @@ function ReplayMap({ ride }) {
     const startLoc = ride.startLocation || (ride.formData && ride.formData.startLocation) || '';
     const destLoc = ride.destination || (ride.formData && ride.formData.destination) || '';
 
-    // Determine start and destination points
-    const startPoint = getCoordinates(startLoc, [17.3850, 78.4867]);
-    const endPoint = getCoordinates(destLoc, [17.9689, 79.5941]);
+    // Determine start and destination points using stored coords if available to match wizard exactly
+    const startPoint = ride.startCoords ? [ride.startCoords.lat, ride.startCoords.lon] : 
+                       (ride.formData && ride.formData.startCoords ? [ride.formData.startCoords.lat, ride.formData.startCoords.lon] : 
+                       getCoordinates(startLoc, [17.3850, 78.4867]));
+                       
+    const endPoint = ride.destCoords ? [ride.destCoords.lat, ride.destCoords.lon] : 
+                     (ride.formData && ride.formData.destCoords ? [ride.formData.destCoords.lat, ride.formData.destCoords.lon] : 
+                     getCoordinates(destLoc, [17.9689, 79.5941]));
 
     // Initialize Leaflet Map
     const map = window.L.map(mapContainerRef.current, {
@@ -66,8 +71,12 @@ function ReplayMap({ ride }) {
     });
     window.L.marker(endPoint, { icon: endIcon }).addTo(map);
 
-    // Draw routing Polyline
-    const polyline = window.L.polyline([startPoint, endPoint], {
+    // Draw routing Polyline (use full calculated routeCoords if present for high accuracy)
+    const pathPoints = (ride.routeCoords && ride.routeCoords.length > 0)
+      ? ride.routeCoords.map(c => [c.lat, c.lon])
+      : [startPoint, endPoint];
+
+    const polyline = window.L.polyline(pathPoints, {
       color: '#ff5500',
       weight: 4,
       opacity: 0.85
@@ -283,7 +292,7 @@ export default function MyRides({ user, rides, onOpenReplay, onEditRide, onDelet
                   </div>
                   <div>
                     <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '9px' }}>Duration</span>
-                    <strong style={{ color: 'white' }}>{ride.duration}</strong>
+                    <strong style={{ color: 'white' }}>{calculateRideDuration(ride.distance)}</strong>
                   </div>
                 </div>
 

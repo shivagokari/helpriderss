@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import LoginScreen from './components/LoginScreen';
 import HomeDashboard from './components/HomeDashboard';
-import { generateGoogleMapsLink } from './utils/geo';
+import { generateGoogleMapsLink, calculateRideDuration } from './utils/geo';
 import { supabase } from './utils/supabase';
 
 // Lazily load heavier sub-screens and modals for code splitting and faster initial load
@@ -185,7 +185,7 @@ export default function App() {
     const enrichedRide = {
       ...newRide,
       status: 'Upcoming',
-      duration: '8h 45m',
+      duration: calculateRideDuration(newRide.distance),
       isFavorite: newRide.isFavorite || false,
       photos: newRide.photos || ['🏍️ Planned Map', '📍 Checklist'],
       pathPoints: newRide.pathPoints || 'M 30,110 C 130,20 180,180 250,90 T 370,120'
@@ -570,7 +570,7 @@ export default function App() {
                 <div style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '10px' }}>
                   <span style={{ fontSize: '10px', background: 'rgba(255,170,0,0.1)', color: 'var(--secondary)', padding: '2px 8px', borderRadius: '10px', fontWeight: 'bold' }}>PLAYBACK ROUTE</span>
                   <h4 style={{ fontSize: '18px', color: 'white', marginTop: '4px' }}>{replaySheetRide.title}</h4>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{replaySheetRide.distance} KM • {replaySheetRide.duration} log time</p>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{replaySheetRide.distance} KM • {calculateRideDuration(replaySheetRide.distance)} log time</p>
                 </div>
 
                 {/* Animated Replay Graphics */}
