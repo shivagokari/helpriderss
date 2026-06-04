@@ -85,9 +85,39 @@ function ReplayMap({ ride }) {
     // Fit map view bounds to show the complete route polyline
     map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
 
+    let animInterval = null;
+    if (pathPoints.length >= 2) {
+      const bikerIcon = window.L.divIcon({
+        className: 'leaflet-biker-marker',
+        html: `<div style="font-size: 20px; transform: scaleX(-1); filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5));" class="animate-pulse-biker">🏍️</div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11]
+      });
+      const bikerMarker = window.L.marker(pathPoints[0], { icon: bikerIcon }).addTo(map);
+
+      let pct = 0;
+      animInterval = setInterval(() => {
+        pct += 0.006;
+        if (pct > 1) pct = 0;
+        
+        const totalPoints = pathPoints.length;
+        const segment = 1 / (totalPoints - 1);
+        const segmentIndex = Math.min(Math.floor(pct / segment), totalPoints - 2);
+        const segmentPct = (pct - segmentIndex * segment) / segment;
+
+        const p1 = pathPoints[segmentIndex];
+        const p2 = pathPoints[segmentIndex + 1];
+
+        const lat = p1[0] + (p2[0] - p1[0]) * segmentPct;
+        const lon = p1[1] + (p2[1] - p1[1]) * segmentPct;
+        bikerMarker.setLatLng([lat, lon]);
+      }, 45);
+    }
+
     mapObj.current = map;
 
     return () => {
+      if (animInterval) clearInterval(animInterval);
       if (mapObj.current) {
         mapObj.current.remove();
         mapObj.current = null;
@@ -403,8 +433,7 @@ export default function MyRides({ user, rides, onOpenReplay, onEditRide, onDelet
                     
                     {/* Google Maps Render in Card */}
                     <div style={{ background: '#0a0a0c', padding: '14px 10px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)', position: 'relative' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 'bold' }}>📡 Google Maps Telemetry Replay</span>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '8px' }}>
                         <a 
                           href={ride.mapsLink || generateGoogleMapsLink(ride.startLocation || (ride.formData && ride.formData.startLocation) || '', ride.destination || (ride.formData && ride.formData.destination) || '')}
                           target="_blank"

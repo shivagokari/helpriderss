@@ -875,10 +875,10 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
     setLoadingText('Syncing weather telemetry and daily route safety protocols...');
     await new Promise(resolve => setTimeout(resolve, 800));
 
-    // Fuel cost lookup based on Crossed-States averages
+    // Fuel cost lookup based on Starting Point State Price
     const startFuelPrice = getFuelPriceForLocation(formData.startLocation, formData.fuelType);
     const destFuelPrice = getFuelPriceForLocation(formData.destination, formData.fuelType);
-    const avgFuelPrice = (startFuelPrice + destFuelPrice) / 2;
+    const avgFuelPrice = startFuelPrice;
 
     // Mileage check based on bike specifications
     const isHighway = finalDistance > 100;
@@ -1240,23 +1240,15 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                     <span style={{ color: 'var(--text-secondary)' }}>Petrol Needed ({generatedItinerary.formData.fuelType}):</span>
                     <strong style={{ color: 'white' }}>{generatedItinerary.fuelConsumption} L</strong>
                   </div>
-                  {/* Show both state prices and average */}
+                  {/* Show starting point state petrol price */}
                   <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '8px 10px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{generatedItinerary.startStateName} Petrol:</span>
-                      <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>₹{generatedItinerary.startFuelPrice}/L</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{generatedItinerary.destStateName} Petrol:</span>
-                      <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>₹{generatedItinerary.destFuelPrice}/L</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '4px', marginTop: '2px' }}>
-                      <span style={{ color: 'var(--primary)', fontSize: '11px', fontWeight: '600' }}>Route Average:</span>
-                      <span style={{ color: 'var(--primary)', fontSize: '11px', fontWeight: '700' }}>₹{generatedItinerary.fuelPricePerLiter}/L</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{generatedItinerary.startStateName} Petrol Price:</span>
+                      <span style={{ color: 'var(--success)', fontSize: '11px', fontWeight: '700' }}>₹{generatedItinerary.startFuelPrice}/L</span>
                     </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Fuel Cost (avg ₹{generatedItinerary.fuelPricePerLiter}/L × {generatedItinerary.fuelConsumption}L):</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Fuel Cost (₹{generatedItinerary.startFuelPrice}/L × {generatedItinerary.fuelConsumption}L):</span>
                     <strong style={{ color: 'var(--success)' }}>₹ {generatedItinerary.fuelCost}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1501,7 +1493,7 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                 {currentStepInfo.key === 'route' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }} className="animate-fade-in">
                     <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                      Enter Indian towns/mandals/districts OR <strong>paste raw coordinates or a long Google Maps URL</strong> containing coordinates.
+                      Enter starting/destination city name OR <strong>paste Google Maps URL / coordinates</strong>.
                     </p>
                     
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', position: 'relative' }}>

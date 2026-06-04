@@ -657,8 +657,7 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
     const specs = computeBikeSpecs(bike, 'Cruising (Scenic/Relaxed)', isHighway);
     setBikeMileage(specs.mileage);
     const startPrice = getFuelPriceForLocation(startLoc, currentFuelType);
-    const destPrice = getFuelPriceForLocation(destLoc, currentFuelType);
-    setFuelPrice((startPrice + destPrice) / 2);
+    setFuelPrice(startPrice);
     if (sCoords && dCoords) {
       let roadDist = calculateRoadDistance(sCoords.lat, sCoords.lon, dCoords.lat, dCoords.lon);
       setFuelDistance(roadDist);
@@ -1040,59 +1039,63 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
             </div>
           </div>
 
-          <div>
-            <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Select Biker Machine</label>
-            <select value={selectedBike} onChange={(e) => handleBikeSelect(e.target.value)} style={{ width: '100%', padding: '8px 10px', fontSize: '12px', background: '#1c1c24' }}>
-              {userGarage.length > 0 ? (
-                userGarage.map((b, idx) => (
-                  <option key={idx} value={b.name}>{b.name}</option>
-                ))
-              ) : (
-                BIKES_DATABASE.map((b, idx) => (
-                  <option key={idx} value={b.name}>{b.name} ({b.type})</option>
-                ))
-              )}
-            </select>
-          </div>
+          {fuelStartLocation && fuelStartLocation.trim() !== '' && (
+            <>
+              <div>
+                <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Select Biker Machine</label>
+                <select value={selectedBike} onChange={(e) => handleBikeSelect(e.target.value)} style={{ width: '100%', padding: '8px 10px', fontSize: '12px', background: '#1c1c24' }}>
+                  {userGarage.length > 0 ? (
+                    userGarage.map((b, idx) => (
+                      <option key={idx} value={b.name}>{b.name}</option>
+                    ))
+                  ) : (
+                    BIKES_DATABASE.map((b, idx) => (
+                      <option key={idx} value={b.name}>{b.name} ({b.type})</option>
+                    ))
+                  )}
+                </select>
+              </div>
 
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
-              <span style={{ color: 'var(--text-secondary)' }}>Road Distance:</span>
-              <span style={{ color: 'white', fontWeight: 'bold' }}>{fuelDistance} KM</span>
-            </div>
-            <input 
-              type="range" min="20" max="1500" step="10"
-              value={fuelDistance}
-              onChange={(e) => { setFuelDistance(Number(e.target.value)); updateCalculations(selectedBike, startCoords, destCoords, Number(e.target.value)); }}
-              style={{ width: '100%', accentColor: 'var(--primary)' }}
-            />
-          </div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Road Distance:</span>
+                  <span style={{ color: 'white', fontWeight: 'bold' }}>{fuelDistance} KM</span>
+                </div>
+                <input 
+                  type="range" min="20" max="1500" step="10"
+                  value={fuelDistance}
+                  onChange={(e) => { setFuelDistance(Number(e.target.value)); updateCalculations(selectedBike, startCoords, destCoords, Number(e.target.value)); }}
+                  style={{ width: '100%', accentColor: 'var(--primary)' }}
+                />
+              </div>
 
-          <div>
-            <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Fuel Preference</label>
-            <select value={fuelType} onChange={(e) => { const nf = e.target.value; setFuelType(nf); setFuelPrice((getFuelPriceForLocation(fuelStartLocation, nf) + getFuelPriceForLocation(fuelDestination, nf)) / 2); }} style={{ width: '100%', padding: '8px 10px', fontSize: '12px', background: '#1c1c24' }}>
-              <option value="Normal Petrol">Normal Petrol</option>
-              <option value="Power Petrol">Power Petrol</option>
-            </select>
-            <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '4px', textAlign: 'right' }}>
-              Average Price: <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>₹ {fuelPrice.toFixed(2)}/L</span>
-            </div>
-          </div>
+              <div>
+                <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Fuel Preference</label>
+                <select value={fuelType} onChange={(e) => { const nf = e.target.value; setFuelType(nf); setFuelPrice(getFuelPriceForLocation(fuelStartLocation, nf)); }} style={{ width: '100%', padding: '8px 10px', fontSize: '12px', background: '#1c1c24' }}>
+                  <option value="Normal Petrol">Normal Petrol</option>
+                  <option value="Power Petrol">Power Petrol</option>
+                </select>
+                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '4px', textAlign: 'right' }}>
+                  Start Petrol Price: <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>₹ {fuelPrice.toFixed(2)}/L</span>
+                </div>
+              </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: '6px', marginTop: '4px', background: 'rgba(0,0,0,0.15)', padding: '12px 10px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.03)', fontSize: '11px' }}>
-            <div style={{ textAlign: 'center' }}>
-              <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Mileage</span>
-              <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'white' }}>{bikeMileage} km/l</div>
-            </div>
-            <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
-              <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Fuel Liters</span>
-              <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'white' }}>{fuelNeeded} L</div>
-            </div>
-            <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
-              <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Fuel Cost</span>
-              <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--secondary)' }}>₹ {fuelCost}</div>
-            </div>
-          </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: '6px', marginTop: '4px', background: 'rgba(0,0,0,0.15)', padding: '12px 10px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.03)', fontSize: '11px' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Mileage</span>
+                  <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'white' }}>{bikeMileage} km/l</div>
+                </div>
+                <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Fuel Liters</span>
+                  <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'white' }}>{fuelNeeded} L</div>
+                </div>
+                <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Fuel Cost</span>
+                  <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--secondary)' }}>₹ {fuelCost}</div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

@@ -73,18 +73,38 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
   const [savingPin, setSavingPin] = useState(false);
   const [hasSavedPin, setHasSavedPin] = useState(false);
 
+  // -- Document Verification States
+  const [rcFrontUrl, setRcFrontUrl] = useState('');
+  const [rcBackUrl, setRcBackUrl] = useState('');
+  const [licenseFrontUrl, setLicenseFrontUrl] = useState('');
+  const [licenseBackUrl, setLicenseBackUrl] = useState('');
+  const [rcFlipped, setRcFlipped] = useState(false);
+  const [licenseFlipped, setLicenseFlipped] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState('');
+
   // Fetch all profile details from Supabase on mount
   useEffect(() => {
     if (!user || !user.uid) return;
     const fetchProfileData = async () => {
       try {
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from('profiles')
-          .select('garage, emergency_contacts, avatar_url, unique_id, security_pin')
+          .select('garage, emergency_contacts, avatar_url, unique_id, security_pin, rc_front_url, rc_back_url, license_front_url, license_back_url')
           .eq('id', user.uid)
           .maybeSingle();
 
-        if (error) throw error;
+        if (error) {
+          console.warn('DB select with document columns failed, falling back...');
+          const fallback = await supabase
+            .from('profiles')
+            .select('garage, emergency_contacts, avatar_url, unique_id, security_pin')
+            .eq('id', user.uid)
+            .maybeSingle();
+
+          if (fallback.error) throw fallback.error;
+          data = fallback.data;
+        }
+
         if (data) {
           setGarage(data.garage || []);
           setEmergencyContacts(data.emergency_contacts || []);
@@ -97,6 +117,11 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
           if (data.garage && data.garage.length > 0) {
             setActiveBike(data.garage[0].name);
           }
+          // Set document URLs if they exist
+          setRcFrontUrl(data.rc_front_url || '');
+          setRcBackUrl(data.rc_back_url || '');
+          setLicenseFrontUrl(data.license_front_url || '');
+          setLicenseBackUrl(data.license_back_url || '');
         }
       } catch (err) {
         console.warn('Failed to load Supabase profile details:', err.message);
@@ -104,6 +129,143 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
     };
     fetchProfileData();
   }, [user]);
+
+  const compressImage = (file, maxSizeBytes = 1024 * 1024) => {
+    return new Promise((resolve, reject) => {
+      // If the file is already smaller than 1MB, resolve immediately
+      if (file.size <= maxSizeBytes) {
+        resolve(file);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Resize down if dimensions are excessively large
+          const maxDimension = 1920;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Recursively drop JPEG quality factor until file size is below limit
+          let quality = 0.85;
+          const exportToBlob = (q) => {
+            canvas.toBlob(
+              (blob) => {
+                if (!blob) {
+                  reject(new Error('Canvas export failed'));
+                  return;
+                }
+                if (blob.size <= maxSizeBytes || q <= 0.1) {
+                  const compressedFile = new File([blob], file.name, {
+                    type: 'image/jpeg',
+                    lastModified: Date.now()
+                  });
+                  resolve(compressedFile);
+                } else {
+                  exportToBlob(q - 0.15);
+                }
+              },
+              'image/jpeg',
+              q
+            );
+          };
+
+          exportToBlob(quality);
+        };
+        img.onerror = (err) => reject(err);
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  };
+
+  const handleDocumentUpload = async (e, type) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate MIME types allowed by user's bucket configuration
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      showToast('⚠️ Only JPEG, JPG, and PNG images are allowed.');
+      return;
+    }
+
+    setUploadingDoc(type);
+    showToast(`⏳ Resizing and compressing image...`);
+
+    try {
+      // Compress client-side below 1MB
+      const compressedFile = await compressImage(file, 1024 * 1024);
+      
+      if (compressedFile.size > 1024 * 1024) {
+        throw new Error('Image is too large and could not be compressed below 1MB.');
+      }
+
+      showToast(`⏳ Uploading document (${(compressedFile.size / 1024).toFixed(0)} KB)...`);
+
+      const fileExt = 'jpg'; // Compress always outputs jpeg blob
+      const path = `${user.uid}/${type}_${Date.now()}.${fileExt}`;
+
+      // Upload to Supabase Storage bucket 'Documents' (exact bucket name)
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('Documents')
+        .upload(path, compressedFile, { cacheControl: '3600', upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get Public URL
+      const { data } = supabase.storage
+        .from('Documents')
+        .getPublicUrl(path);
+
+      const publicUrl = data?.publicUrl;
+      if (!publicUrl) throw new Error('Could not retrieve public URL.');
+
+      // Save to profiles table
+      const columnName = `${type}_url`; // e.g., rc_front_url
+      const { error: dbError } = await supabase
+        .from('profiles')
+        .update({ [columnName]: publicUrl })
+        .eq('id', user.uid);
+
+      if (dbError) {
+        console.warn('DB update failed, columns might not exist:', dbError.message);
+        throw new Error('Database columns missing. Please execute the SQL setup script in Supabase.');
+      }
+
+      // Update state
+      if (type === 'rc_front') setRcFrontUrl(publicUrl);
+      if (type === 'rc_back') setRcBackUrl(publicUrl);
+      if (type === 'license_front') setLicenseFrontUrl(publicUrl);
+      if (type === 'license_back') setLicenseBackUrl(publicUrl);
+
+      showToast('✅ Document uploaded successfully!');
+    } catch (err) {
+      console.error('Upload failed:', err);
+      showToast(`❌ Upload failed: ${err.message || 'Check storage configuration'}`);
+    } finally {
+      setUploadingDoc('');
+    }
+  };
 
   const handleAddBike = async (e) => {
     e.preventDefault();
@@ -145,7 +307,7 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
     }
     const phoneRegex = /^[6-9]\d{9}$/;
     if (!phoneRegex.test(phone)) {
-      showToast('⚠️ Phone number must be a valid 10-digit Indian mobile number.');
+      showToast('⚠️ Phone number must be a valid 10-digit Indian mobile number (starts with 6, 7, 8, or 9).');
       return;
     }
     const updatedContacts = [...emergencyContacts, { name, phone }];
@@ -1086,6 +1248,298 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
         </form>
       </div>
 
+      {/* Biker Documents (License & RC) */}
+      <div className="glass-panel" style={{ padding: '16px', marginBottom: '16px' }}>
+        <h4 style={{ fontSize: '15px', color: 'white', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Award size={16} color="var(--primary)" /> Biker Documents (License & RC)
+        </h4>
+        <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: '1.4' }}>
+          Tap a card to flip and view the back side. Tap the camera icon in the corner to upload or update.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          {/* DRIVING LICENSE CARD */}
+          <div style={{ perspective: '1000px', width: '100%', height: '140px' }}>
+            <div 
+              onClick={() => setLicenseFlipped(!licenseFlipped)}
+              style={{
+                position: 'relative',
+                width: '100%',
+                height: '100%',
+                transition: 'transform 0.6s',
+                transformStyle: 'preserve-3d',
+                transform: licenseFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                cursor: 'pointer'
+              }}
+            >
+              {/* Front Side */}
+              <div style={{
+                position: 'absolute',
+                width: '100%',
+                height: '100%',
+                backfaceVisibility: 'hidden',
+                WebkitBackfaceVisibility: 'hidden',
+                background: '#121216',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                padding: '6px'
+              }}>
+                {uploadingDoc === 'license_front' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div style={{ width: '20px', height: '20px', border: '2px solid transparent', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
+                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '6px' }}>Uploading...</span>
+                  </div>
+                ) : licenseFrontUrl ? (
+                  <img src={licenseFrontUrl} alt="License Front" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
+                ) : (
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px' }}>
+                    <span style={{ fontSize: '20px', display: 'block', marginBottom: '4px' }}>🪪</span>
+                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: 'white', display: 'block' }}>License Front</span>
+                    <span style={{ fontSize: '8px', opacity: 0.5, marginTop: '2px', display: 'block' }}>Tap card to flip</span>
+                  </div>
+                )}
+                {/* Upload button overlay */}
+                <label 
+                  onClick={(e) => e.stopPropagation()} 
+                  style={{
+                    position: 'absolute',
+                    right: '6px',
+                    bottom: '6px',
+                    background: 'rgba(0,0,0,0.75)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: '50%',
+                    width: '26px',
+                    height: '26px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: 'white',
+                    zIndex: 10
+                  }}
+                >
+                  <Camera size={12} />
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={(e) => handleDocumentUpload(e, 'license_front')} 
+                    style={{ display: 'none' }} 
+                  />
+                </label>
+              </div>
+
+              {/* Back Side */}
+              <div style={{
+                position: 'absolute',
+                width: '100%',
+                height: '100%',
+                backfaceVisibility: 'hidden',
+                WebkitBackfaceVisibility: 'hidden',
+                transform: 'rotateY(180deg)',
+                background: '#121216',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                padding: '6px'
+              }}
+              className="flip-card-back-side"
+              >
+                {uploadingDoc === 'license_back' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div style={{ width: '20px', height: '20px', border: '2px solid transparent', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
+                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '6px' }}>Uploading...</span>
+                  </div>
+                ) : licenseBackUrl ? (
+                  <img src={licenseBackUrl} alt="License Back" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
+                ) : (
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px' }}>
+                    <span style={{ fontSize: '20px', display: 'block', marginBottom: '4px' }}>🪪</span>
+                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: 'white', display: 'block' }}>License Back</span>
+                    <span style={{ fontSize: '8px', opacity: 0.5, marginTop: '2px', display: 'block' }}>Tap card to flip</span>
+                  </div>
+                )}
+                {/* Upload button overlay */}
+                <label 
+                  onClick={(e) => e.stopPropagation()} 
+                  style={{
+                    position: 'absolute',
+                    left: '6px',
+                    bottom: '6px',
+                    background: 'rgba(0,0,0,0.75)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: '50%',
+                    width: '26px',
+                    height: '26px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: 'white',
+                    zIndex: 10
+                  }}
+                >
+                  <Camera size={12} />
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={(e) => handleDocumentUpload(e, 'license_back')} 
+                    style={{ display: 'none' }} 
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* BIKE RC CARD */}
+          <div style={{ perspective: '1000px', width: '100%', height: '140px' }}>
+            <div 
+              onClick={() => setRcFlipped(!rcFlipped)}
+              style={{
+                position: 'relative',
+                width: '100%',
+                height: '100%',
+                transition: 'transform 0.6s',
+                transformStyle: 'preserve-3d',
+                transform: rcFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                cursor: 'pointer'
+              }}
+            >
+              {/* Front Side */}
+              <div style={{
+                position: 'absolute',
+                width: '100%',
+                height: '100%',
+                backfaceVisibility: 'hidden',
+                WebkitBackfaceVisibility: 'hidden',
+                background: '#121216',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                padding: '6px'
+              }}>
+                {uploadingDoc === 'rc_front' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div style={{ width: '20px', height: '20px', border: '2px solid transparent', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
+                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '6px' }}>Uploading...</span>
+                  </div>
+                ) : rcFrontUrl ? (
+                  <img src={rcFrontUrl} alt="RC Front" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
+                ) : (
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px' }}>
+                    <span style={{ fontSize: '20px', display: 'block', marginBottom: '4px' }}>📄</span>
+                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: 'white', display: 'block' }}>RC Front</span>
+                    <span style={{ fontSize: '8px', opacity: 0.5, marginTop: '2px', display: 'block' }}>Tap card to flip</span>
+                  </div>
+                )}
+                {/* Upload button overlay */}
+                <label 
+                  onClick={(e) => e.stopPropagation()} 
+                  style={{
+                    position: 'absolute',
+                    right: '6px',
+                    bottom: '6px',
+                    background: 'rgba(0,0,0,0.75)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: '50%',
+                    width: '26px',
+                    height: '26px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: 'white',
+                    zIndex: 10
+                  }}
+                >
+                  <Camera size={12} />
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={(e) => handleDocumentUpload(e, 'rc_front')} 
+                    style={{ display: 'none' }} 
+                  />
+                </label>
+              </div>
+
+              {/* Back Side */}
+              <div style={{
+                position: 'absolute',
+                width: '100%',
+                height: '100%',
+                backfaceVisibility: 'hidden',
+                WebkitBackfaceVisibility: 'hidden',
+                transform: 'rotateY(180deg)',
+                background: '#121216',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                padding: '6px'
+              }}>
+                {uploadingDoc === 'rc_back' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div style={{ width: '20px', height: '20px', border: '2px solid transparent', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
+                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '6px' }}>Uploading...</span>
+                  </div>
+                ) : rcBackUrl ? (
+                  <img src={rcBackUrl} alt="RC Back" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
+                ) : (
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px' }}>
+                    <span style={{ fontSize: '20px', display: 'block', marginBottom: '4px' }}>📄</span>
+                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: 'white', display: 'block' }}>RC Back</span>
+                    <span style={{ fontSize: '8px', opacity: 0.5, marginTop: '2px', display: 'block' }}>Tap card to flip</span>
+                  </div>
+                )}
+                {/* Upload button overlay */}
+                <label 
+                  onClick={(e) => e.stopPropagation()} 
+                  style={{
+                    position: 'absolute',
+                    left: '6px',
+                    bottom: '6px',
+                    background: 'rgba(0,0,0,0.75)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: '50%',
+                    width: '26px',
+                    height: '26px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: 'white',
+                    zIndex: 10
+                  }}
+                >
+                  <Camera size={12} />
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={(e) => handleDocumentUpload(e, 'rc_back')} 
+                    style={{ display: 'none' }} 
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Emergency SOS Contacts */}
       <div className="glass-panel" style={{ padding: '16px', borderLeft: '3px solid var(--accent)', marginBottom: '16px' }}>
         <h4 style={{ fontSize: '15px', color: 'var(--accent)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1254,7 +1708,7 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
               const cleanPhone = devMobile.replace(/\D/g, '');
               const indianPhoneRegex = /^[6-9]\d{9}$/;
               if (!indianPhoneRegex.test(cleanPhone)) {
-                showToast('⚠️ Please enter a valid 10-digit Indian phone number.');
+                showToast('⚠️ Please enter a valid 10-digit Indian mobile number (starts with 6, 7, 8, or 9).');
                 return;
               }
 

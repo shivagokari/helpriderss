@@ -912,12 +912,12 @@ export async function getOSRMRouteDistance(coords) {
 }
 
 /**
- * Calculates ride travel duration based on average biking speed (70 to 80 km/h)
+ * Calculates ride travel duration based on average biking speed matching Google Maps (~50 km/h)
  */
 export function calculateRideDuration(distanceVal) {
   let distance = typeof distanceVal === 'string' ? parseFloat(distanceVal.replace(/[^\d.]/g, '')) : distanceVal;
   if (!distance || isNaN(distance)) return '0h 00m';
-  const averageSpeed = 75; // average speed of 70 to 80 km/h
+  const averageSpeed = 50; // average speed matching Google Maps in India
   const totalHours = distance / averageSpeed;
   const hours = Math.floor(totalHours);
   const minutes = Math.round((totalHours - hours) * 60);

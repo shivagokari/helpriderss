@@ -632,6 +632,13 @@ export default function LoginScreen({ onLoginSuccess }) {
       } else if (cleanMobileDigits.length === 11 && cleanMobileDigits.startsWith('0')) {
         normalizedMobile = cleanMobileDigits.substring(1);
       }
+
+      const indianMobileRegex = /^[6-9]\d{9}$/;
+      if (!indianMobileRegex.test(normalizedMobile)) {
+        setError('Please enter a valid 10-digit Indian mobile number (starts with 6, 7, 8, or 9)');
+        setLoading(false);
+        return;
+      }
       const formattedMobile = `+91 ${normalizedMobile}`;
 
       // Call secure database function (verifies Email, Mobile, & Security Recovery PIN matching)
@@ -1338,7 +1345,7 @@ export default function LoginScreen({ onLoginSuccess }) {
               const cleanPhone = devMobile.replace(/\D/g, '');
               const indianPhoneRegex = /^[6-9]\d{9}$/;
               if (!indianPhoneRegex.test(cleanPhone)) {
-                setDevError('⚠️ Please enter a valid 10-digit Indian phone number.');
+                setDevError('⚠️ Please enter a valid 10-digit Indian mobile number (starts with 6, 7, 8, or 9).');
                 return;
               }
 
