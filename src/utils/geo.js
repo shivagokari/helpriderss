@@ -847,7 +847,7 @@ export async function getOSRMRouteDistance(coords) {
       const data = await response.json();
       if (data.routes && data.routes.length > 0) {
         const distanceInMeters = data.routes[0].distance;
-        let km = Math.round((distanceInMeters / 1000) * 0.925); // Calibrate by 0.925 to match Google Maps within 1-5km
+        let km = Math.round(distanceInMeters / 1000); // Raw OSRM road distance matches Google Maps extremely accurately
         return km;
       }
     }
@@ -871,7 +871,7 @@ export async function getOSRMRouteDistance(coords) {
       const data = await response.json();
       if (data.routes && data.routes.length > 0) {
         const distanceInMeters = data.routes[0].distance;
-        let km = Math.round((distanceInMeters / 1000) * 0.925); // Calibrate by 0.925 to match Google Maps within 1-5km
+        let km = Math.round(distanceInMeters / 1000); // Raw OSRM road distance matches Google Maps extremely accurately
         return km;
       }
     }
@@ -895,7 +895,7 @@ export async function getOSRMRouteDistance(coords) {
       const data = await response.json();
       if (data.routes && data.routes.length > 0) {
         const distanceInMeters = data.routes[0].distance;
-        let km = Math.round((distanceInMeters / 1000) * 0.925); // Calibrate by 0.925 to match Google Maps within 1-5km
+        let km = Math.round(distanceInMeters / 1000); // Raw OSRM road distance matches Google Maps extremely accurately
         return km;
       }
     }
