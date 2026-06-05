@@ -802,7 +802,74 @@ export function calculateRoadDistance(lat1, lon1, lat2, lon2) {
  * Calculates dynamic road distance from Open Source Routing Machine (OSRM) API
  */
 export async function getOSRMDistance(lat1, lon1, lat2, lon2) {
-  return getOSRMRouteDistance([{ lat: lat1, lon: lon1 }, { lat: lat2, lon: lon2 }]);
+  const result = await getGoogleMapsRoute([{ lat: lat1, lon: lon1 }, { lat: lat2, lon: lon2 }]);
+  return result.distance;
+}
+
+function decodePolyline(encoded) {
+  const points = [];
+  let index = 0, len = encoded.length;
+  let lat = 0, lng = 0;
+  while (index < len) {
+    let b, shift = 0, result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lat += dlat;
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lng += dlng;
+    points.push({ lat: lat / 1e5, lon: lng / 1e5 });
+  }
+  return points;
+}
+
+export async function getGoogleMapsRoute(coords) {
+  if (!coords || coords.length < 2) return { distance: 0, routeCoords: [] };
+  
+  const GOOGLE_MAPS_API_KEY = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyBzIEyXkZRBHInzXPhWhSrsTSqwKWMm16c';
+  
+  let url = `https://maps.googleapis.com/maps/api/directions/json?origin=${coords[0].lat},${coords[0].lon}&destination=${coords[coords.length-1].lat},${coords[coords.length-1].lon}`;
+  
+  if (coords.length > 2) {
+    const waypoints = coords.slice(1, coords.length - 1).map(c => `${c.lat},${c.lon}`).join('|');
+    url += `&waypoints=${waypoints}`;
+  }
+  url += `&key=${GOOGLE_MAPS_API_KEY}`;
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Google Maps API request failed');
+    const data = await response.json();
+    
+    if (data.status === 'OK' && data.routes && data.routes.length > 0) {
+      let totalMeters = 0;
+      data.routes[0].legs.forEach(leg => {
+        totalMeters += leg.distance.value;
+      });
+      const distance = Math.round(totalMeters / 1000);
+      
+      const encodedPolyline = data.routes[0].overview_polyline?.points;
+      const routeCoords = encodedPolyline ? decodePolyline(encodedPolyline) : coords;
+      
+      return { distance, routeCoords };
+    } else {
+      throw new Error(`Google Maps API error: ${data.status} - ${data.error_message || ''}`);
+    }
+  } catch (err) {
+    console.warn("Google Maps Directions API failed, falling back to OSRM:", err.message);
+    const osrmDistance = await getOSRMRouteDistance(coords);
+    return { distance: osrmDistance, routeCoords: coords };
+  }
 }
 
 /**

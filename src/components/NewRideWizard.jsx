@@ -9,7 +9,7 @@ import {
   searchLocationInIndia, 
   calculateRoadDistance, 
   getOSRMDistance,
-  getOSRMRouteDistance,
+  getGoogleMapsRoute,
   getFamousFoodRecommendations,
   computeBikeSpecs, 
   generateGoogleMapsLink, 
@@ -842,22 +842,24 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
     
     // Outbound route coordinates
     const outboundCoords = [startCoords, ...waypoints.filter(w => w.coords).map(w => w.coords), destCoords];
-    const outboundDistance = await getOSRMRouteDistance(outboundCoords);
+    const outboundResult = await getGoogleMapsRoute(outboundCoords);
+    const outboundDistance = outboundResult.distance;
+    const outboundDetailedCoords = outboundResult.routeCoords;
     
     let returnDistance = 0;
+    let returnDetailedCoords = [];
     if (formData.tripType === 'Round Trip') {
       const returnCoords = [
         returnStartCoords || destCoords, 
         ...returnWaypoints.filter(w => w.coords).map(w => w.coords), 
         returnDestCoords || startCoords
       ];
-      returnDistance = await getOSRMRouteDistance(returnCoords);
+      const returnResult = await getGoogleMapsRoute(returnCoords);
+      returnDistance = returnResult.distance;
+      returnDetailedCoords = returnResult.routeCoords;
     }
-    // Secondary Name-Based Calibration safety net bypassed to trust raw OSRM road distance
-    let finalOutboundDistance = outboundDistance;
-    let finalReturnDistance = returnDistance;
     
-    const finalDistance = finalOutboundDistance + finalReturnDistance;
+    const finalDistance = outboundDistance + returnDistance;
 
     // Asynchronously query live hospitals and attractions near destination
     let hospitals = [];
@@ -946,14 +948,9 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
     const foodRecs = getFamousFoodRecommendations(formData.startLocation, formData.destination);
 
     // Combine route coordinates for map path rendering
-    const routeCoords = [...outboundCoords];
+    const routeCoords = [...outboundDetailedCoords];
     if (formData.tripType === 'Round Trip') {
-      const returnCoords = [
-        returnStartCoords || destCoords, 
-        ...returnWaypoints.filter(w => w.coords).map(w => w.coords), 
-        returnDestCoords || startCoords
-      ];
-      routeCoords.push(...returnCoords);
+      routeCoords.push(...returnDetailedCoords);
     }
 
     // Extract clean state names from location strings
