@@ -81,6 +81,13 @@ CREATE POLICY "Users can update or delete their own rides" ON public.rides
     EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.level = 'System Administrator')
   );
 
+DROP POLICY IF EXISTS "Allow authenticated users to update join_requests" ON public.rides;
+CREATE POLICY "Allow authenticated users to update join_requests" ON public.rides
+  FOR UPDATE
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
 
 
 -- 3. Create Dev Contacts Table (for Contact Developer form submissions)

@@ -442,7 +442,7 @@ input:focus, select:focus, textarea:focus {
   .home-dashboard {
     padding: 14px 12px !important;
     width: 100% !important;
-    max-width: 360px !important;
+    max-width: 480px !important;
     margin: 0 auto !important;
     box-sizing: border-box !important;
   }
@@ -450,7 +450,7 @@ input:focus, select:focus, textarea:focus {
   .profile-section {
     padding: 14px 12px !important;
     width: 100% !important;
-    max-width: 360px !important;
+    max-width: 480px !important;
     margin: 0 auto !important;
     box-sizing: border-box !important;
   }
@@ -496,7 +496,7 @@ input:focus, select:focus, textarea:focus {
 
   /* Bottom Navigation compacting */
   .app-shell > nav {
-    height: 72px !important;
+    height: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px) !important;
     padding-top: 8px !important;
   }

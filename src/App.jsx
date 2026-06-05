@@ -271,14 +271,14 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="app-shell animate-fade-in">
+      <div className="app-shell compact-shell animate-fade-in">
         <LoginScreen onLoginSuccess={handleLogin} />
       </div>
     );
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell compact-shell">
       
       {/* Dynamic PWA Install Banner */}
       {showInstallBanner && (
@@ -436,7 +436,7 @@ export default function App() {
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', color: newRideOpen ? 'var(--primary)' : 'var(--text-secondary)' }}
         >
           <PlusCircle size={20} />
-          <span style={{ fontSize: '9px' }}>New Ride</span>
+          <span style={{ fontSize: '9px' }}>Plan</span>
         </button>
 
         <button 
@@ -444,7 +444,7 @@ export default function App() {
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', color: activeTab === 'my-rides' ? 'var(--primary)' : 'var(--text-secondary)' }}
         >
           <History size={20} />
-          <span style={{ fontSize: '9px', fontWeight: activeTab === 'my-rides' ? 'bold' : 'normal' }}>My Rides</span>
+          <span style={{ fontSize: '9px', fontWeight: activeTab === 'my-rides' ? 'bold' : 'normal' }}>Rides</span>
         </button>
 
         <button 
@@ -452,7 +452,7 @@ export default function App() {
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', color: activeTab === 'lets-ride' ? 'var(--primary)' : 'var(--text-secondary)' }}
         >
           <Users size={20} />
-          <span style={{ fontSize: '9px', fontWeight: activeTab === 'lets-ride' ? 'bold' : 'normal' }}>Let's Ride</span>
+          <span style={{ fontSize: '9px', fontWeight: activeTab === 'lets-ride' ? 'bold' : 'normal' }}>Crew</span>
         </button>
 
         <button 

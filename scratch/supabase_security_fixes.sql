@@ -41,3 +41,13 @@ CREATE POLICY insert_policy ON public.dev_contacts
 FOR INSERT
 TO anon, authenticated
 WITH CHECK (name IS NOT NULL AND mobile IS NOT NULL);
+
+
+-- 5. Fix Join Requests Update Permission on rides
+DROP POLICY IF EXISTS "Allow authenticated users to update join_requests" ON public.rides;
+CREATE POLICY "Allow authenticated users to update join_requests" ON public.rides
+  FOR UPDATE
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+

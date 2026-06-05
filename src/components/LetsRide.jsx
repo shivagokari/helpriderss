@@ -588,15 +588,19 @@ export default function LetsRide({ user }) {
       const updatedJoinRequests = selectedRide.joinRequests ? [...selectedRide.joinRequests, newRequest] : [newRequest];
       const newJoinedCount = (selectedRide.joinedCount || 1) + 1;
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('rides')
         .update({
           join_requests: updatedJoinRequests,
           joined_count: newJoinedCount
         })
-        .eq('id', selectedRide.id);
+        .eq('id', selectedRide.id)
+        .select();
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error('Permission denied. Database RLS policies blocked the update.');
+      }
 
       // Create a notification for the ride plan creator showing all the details
       const newNotification = {
@@ -726,7 +730,7 @@ export default function LetsRide({ user }) {
   };
 
   return (
-    <div className="lets-ride-section scroll-y" style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: '20px', height: '100%', maxWidth: '360px', margin: '0 auto' }}>
+    <div className="lets-ride-section scroll-y" style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: '20px', height: '100%', maxWidth: '480px', margin: '0 auto' }}>
       
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

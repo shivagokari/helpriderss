@@ -209,7 +209,7 @@ export default function MyRides({ user, rides, onOpenReplay, onEditRide, onDelet
   };
 
   return (
-    <div className="my-rides scroll-y" style={{ padding: '20px 16px', maxWidth: '360px', margin: '0 auto' }}>
+    <div className="my-rides scroll-y" style={{ padding: '20px 16px', maxWidth: '480px', margin: '0 auto' }}>
       
       {/* Page Title */}
       <div style={{ marginBottom: '20px' }}>
