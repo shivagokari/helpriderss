@@ -1,6 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Phone, Lock, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, Flame, Mail, User, CheckCircle, Send, Headphones } from 'lucide-react';
 import { supabase } from '../utils/supabase';
+
+function generateUniqueId() {
+  return 'HR-' + Math.floor(10000 + Math.random() * 90000);
+}
 
 /* ═══════════════════════════════════════════════════════════
    Shared input style constants (defined OUTSIDE the component 
@@ -63,7 +67,6 @@ export default function LoginScreen({ onLoginSuccess }) {
   const [mobileNumber, setMobileNumber] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [recoveryUniqueId, setRecoveryUniqueId] = useState('');
   const [recoveryPin, setRecoveryPin] = useState('');
   
   const [showPassword, setShowPassword] = useState(false);
@@ -103,7 +106,7 @@ export default function LoginScreen({ onLoginSuccess }) {
           let level = profile?.level || 'Rookie Rider';
 
           if (!profile) {
-            uniqueId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+            uniqueId = generateUniqueId();
             await supabase.from('profiles').insert({
               id: session.user.id,
               email: session.user.email,
@@ -113,7 +116,7 @@ export default function LoginScreen({ onLoginSuccess }) {
               unique_id: uniqueId
             });
           } else if (!uniqueId) {
-            uniqueId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+            uniqueId = generateUniqueId();
             await supabase.from('profiles').update({ unique_id: uniqueId }).eq('id', session.user.id);
           }
 
@@ -249,7 +252,7 @@ export default function LoginScreen({ onLoginSuccess }) {
 
         if (!profile) {
           if (!uniqueId) {
-            uniqueId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+            uniqueId = generateUniqueId();
           }
           await supabase.from('profiles').insert({
             id: data.user.id,
@@ -260,7 +263,7 @@ export default function LoginScreen({ onLoginSuccess }) {
             unique_id: uniqueId
           });
         } else if (!uniqueId) {
-          uniqueId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+          uniqueId = generateUniqueId();
           await supabase.from('profiles').update({ unique_id: uniqueId }).eq('id', data.user.id);
         }
 
@@ -385,7 +388,7 @@ export default function LoginScreen({ onLoginSuccess }) {
 
       if (signUpData.session && signUpData.user) {
         const user = signUpData.user;
-        let generatedId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+        let generatedId = generateUniqueId();
         let finalName = fullName;
         let finalMobile = formattedMobile;
 
@@ -419,7 +422,7 @@ export default function LoginScreen({ onLoginSuccess }) {
         completeLoginFlow(user, finalMobile, finalName, 'Rookie Rider', generatedId);
       } else if (signUpData.user) {
         const user = signUpData.user;
-        const generatedId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+        const generatedId = generateUniqueId();
 
         const { error: profileError } = await supabase.from('profiles').insert({
           id: user.id,
@@ -560,7 +563,7 @@ export default function LoginScreen({ onLoginSuccess }) {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
-        let generatedId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+        let generatedId = generateUniqueId();
         let finalName = fullName;
         let finalMobile = mobileNumber;
 
@@ -718,7 +721,7 @@ export default function LoginScreen({ onLoginSuccess }) {
 
         if (!profile) {
           if (!uniqueId) {
-            uniqueId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+            uniqueId = generateUniqueId();
           }
           await supabase.from('profiles').insert({
             id: user.id,
@@ -735,7 +738,7 @@ export default function LoginScreen({ onLoginSuccess }) {
               .update({ unique_id: uniqueId, name: name, mobile: mobile })
               .eq('id', user.id);
           } else if (!uniqueId) {
-            uniqueId = 'HR-' + Math.floor(10000 + Math.random() * 90000);
+            uniqueId = generateUniqueId();
             await supabase.from('profiles').update({ unique_id: uniqueId }).eq('id', user.id);
           }
         }

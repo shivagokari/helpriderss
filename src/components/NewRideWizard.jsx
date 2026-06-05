@@ -1,21 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
-  X, Compass, MapPin, Calendar, Users, Bike, DollarSign, 
-  Map, Fuel, Shield, Landmark, ArrowRight, ArrowLeft, 
-  Sparkles, CloudSun, Eye, HelpCircle, HardHat, ShieldAlert,
-  CheckSquare, Square, AlertCircle, ExternalLink, Play, PlusCircle, Share2
+  X, Compass, MapPin, DollarSign, 
+  Map, Shield, ArrowRight, ArrowLeft, 
+  Sparkles, CloudSun, HardHat, ShieldAlert,
+  CheckSquare, Square, AlertCircle, ExternalLink, PlusCircle, Share2
 } from 'lucide-react';
 import { 
   searchLocationInIndia, 
-  calculateRoadDistance, 
-  getOSRMDistance,
   getGoogleMapsRoute,
   getFamousFoodRecommendations,
   computeBikeSpecs, 
   generateGoogleMapsLink, 
-  BIKES_DATABASE, 
-  TELANGANA_FUEL,
-  getCustomBikes,
   saveCustomBike,
   searchBikes,
   INDIAN_CITIES,
@@ -115,7 +110,6 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
   const [destCoords, setDestCoords] = useState(() => editingRide ? editingRide.destCoords : null);
   const [startSuggestions, setStartSuggestions] = useState([]);
   const [destSuggestions, setDestSuggestions] = useState([]);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   // Autocomplete Select Tracker to avoid infinite suggestion loops
   const [startSelected, setStartSelected] = useState(() => editingRide ? true : false);
@@ -292,7 +286,9 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
         if (map) {
           try {
             map.remove();
-          } catch(e) {}
+          } catch {
+            // ignore
+          }
         }
       };
     }
@@ -312,18 +308,21 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
   useEffect(() => {
     const query = formData.startLocation.trim();
     if (startSelected || query.length < 1) {
-      setStartSuggestions([]);
+      Promise.resolve().then(() => {
+        setStartSuggestions([]);
+      });
       return;
     }
 
     // Instantly set local database matches (no network lag)
     const locals = getLocalCities(query);
-    setStartSuggestions(locals);
+    Promise.resolve().then(() => {
+      setStartSuggestions(locals);
+    });
 
     // Only query external geocoding API if length >= 3 and online
     if (query.length >= 3 && navigator.onLine) {
       const timer = setTimeout(async () => {
-        setLoadingSuggestions(true);
         const res = await searchLocationInIndia(query);
         if (res && res.length > 0) {
           setStartSuggestions(prev => {
@@ -336,7 +335,6 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
             return combined.slice(0, 8);
           });
         }
-        setLoadingSuggestions(false);
       }, 400);
       return () => clearTimeout(timer);
     }
@@ -346,18 +344,21 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
   useEffect(() => {
     const query = formData.destination.trim();
     if (destSelected || query.length < 1) {
-      setDestSuggestions([]);
+      Promise.resolve().then(() => {
+        setDestSuggestions([]);
+      });
       return;
     }
 
     // Instantly set local database matches (no network lag)
     const locals = getLocalCities(query);
-    setDestSuggestions(locals);
+    Promise.resolve().then(() => {
+      setDestSuggestions(locals);
+    });
 
     // Only query external geocoding API if length >= 3 and online
     if (query.length >= 3 && navigator.onLine) {
       const timer = setTimeout(async () => {
-        setLoadingSuggestions(true);
         const res = await searchLocationInIndia(query);
         if (res && res.length > 0) {
           setDestSuggestions(prev => {
@@ -370,7 +371,6 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
             return combined.slice(0, 8);
           });
         }
-        setLoadingSuggestions(false);
       }, 400);
       return () => clearTimeout(timer);
     }
@@ -380,11 +380,15 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
   useEffect(() => {
     const query = returnStartLocation.trim();
     if (returnStartSelected || query.length < 1) {
-      setReturnStartSuggestions([]);
+      Promise.resolve().then(() => {
+        setReturnStartSuggestions([]);
+      });
       return;
     }
     const locals = getLocalCities(query);
-    setReturnStartSuggestions(locals);
+    Promise.resolve().then(() => {
+      setReturnStartSuggestions(locals);
+    });
     if (query.length >= 3 && navigator.onLine) {
       const timer = setTimeout(async () => {
         const res = await searchLocationInIndia(query);
@@ -408,11 +412,15 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
   useEffect(() => {
     const query = returnDestination.trim();
     if (returnDestSelected || query.length < 1) {
-      setReturnDestSuggestions([]);
+      Promise.resolve().then(() => {
+        setReturnDestSuggestions([]);
+      });
       return;
     }
     const locals = getLocalCities(query);
-    setReturnDestSuggestions(locals);
+    Promise.resolve().then(() => {
+      setReturnDestSuggestions(locals);
+    });
     if (query.length >= 3 && navigator.onLine) {
       const timer = setTimeout(async () => {
         const res = await searchLocationInIndia(query);
@@ -600,11 +608,15 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
   useEffect(() => {
     const query = bikeSearch.trim();
     if (bikeSelected || query.length < 1) {
-      setBikeSuggestions([]);
+      Promise.resolve().then(() => {
+        setBikeSuggestions([]);
+      });
       return;
     }
     const res = searchBikes(query);
-    setBikeSuggestions(res);
+    Promise.resolve().then(() => {
+      setBikeSuggestions(res);
+    });
   }, [bikeSearch, bikeSelected]);
 
   const handleInputChange = (field, value) => {
@@ -910,7 +922,7 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
     const totalExpenses = fuelCost + hotelRate + foodCost;
 
     // Google Maps Directions link
-    let gMapsLink = '';
+    let gMapsLink;
     const outboundStops = waypoints.map(w => w.name).filter(Boolean).join('|');
     if (formData.tripType === 'Round Trip') {
       const returnStopsList = returnWaypoints.map(w => w.name).filter(Boolean);
@@ -1850,7 +1862,7 @@ export default function NewRideWizard({ onClose, onSaveRide, editingRide }) {
                 {/* Standard Select Options Step */}
                 {currentStepInfo.type === 'select' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '350px', overflowY: 'auto', paddingRight: '4px' }} className="scroll-y animate-fade-in">
-                    {currentStepInfo.options.map((opt, idx) => {
+                    {currentStepInfo.options.map((opt) => {
                       const isSelected = formData[currentStepInfo.key] === opt;
                       return (
                         <button

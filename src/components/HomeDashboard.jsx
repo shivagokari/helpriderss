@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
-  CloudSun, Droplet, Gauge, MapPin, Calendar, Fuel, 
-  Sparkles, Navigation, AlertTriangle, 
-  Wrench, Share2, Bell, AlertCircle, CheckSquare, Square,
-  Plus, Trash2, Clock, X, Bike
+  Droplet, Gauge, Calendar, Fuel, Sparkles, 
+  Wrench, Bell, AlertCircle, CheckSquare, Square,
+  Trash2, Clock, X, Bike
 } from 'lucide-react';
 import { 
   searchLocationInIndia, 
@@ -11,7 +10,6 @@ import {
   getOSRMDistance,
   computeBikeSpecs, 
   BIKES_DATABASE, 
-  TELANGANA_FUEL,
   INDIAN_CITIES,
   getFuelPriceForLocation,
   generateLocationWeather
@@ -31,7 +29,7 @@ const ESSENTIALS = [
   { id: 'phone', label: '📱 Phone + Charger', desc: 'Power bank charged' },
 ];
 
-export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWizard, rides }) {
+export default function HomeDashboard({ user, onTabChange, rides }) {
   // Fuel Estimator States
   const [fuelStartLocation, setFuelStartLocation] = useState('');
   const [fuelDestination, setFuelDestination] = useState('');
@@ -59,13 +57,32 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
   const [startSelected, setStartSelected] = useState(false);
   const [destSelected, setDestSelected] = useState(false);
 
+  const updateCalculations = async (bike, sCoords, dCoords, currentDist, startLoc = fuelStartLocation, currentFuelType = fuelType) => {
+    setValidationError('');
+    const isHighway = currentDist > 100;
+    const specs = computeBikeSpecs(bike, 'Cruising (Scenic/Relaxed)', isHighway);
+    setBikeMileage(specs.mileage);
+    const startPrice = getFuelPriceForLocation(startLoc, currentFuelType);
+    setFuelPrice(startPrice);
+    if (sCoords && dCoords) {
+      let roadDist = calculateRoadDistance(sCoords.lat, sCoords.lon, dCoords.lat, dCoords.lon);
+      setFuelDistance(roadDist);
+      try {
+        const osrmDist = await getOSRMDistance(sCoords.lat, sCoords.lon, dCoords.lat, dCoords.lon);
+        if (osrmDist && osrmDist > 0) { roadDist = osrmDist; setFuelDistance(roadDist); }
+      } catch (err) { console.warn('OSRM distance lookup failed', err); }
+      const updatedSpecs = computeBikeSpecs(bike, 'Cruising (Scenic/Relaxed)', roadDist > 100);
+      setBikeMileage(updatedSpecs.mileage);
+    }
+  };
+
   // ─── Reminders state ───────────────────────────────────────────────────────
   const [reminders, setReminders] = useState(() => {
     if (user && user.uid) {
       try {
         const saved = localStorage.getItem(`helpriders_reminders_${user.uid}`);
         return saved ? JSON.parse(saved) : [];
-      } catch (e) {
+      } catch {
         return [];
       }
     }
@@ -76,7 +93,7 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
       try {
         const saved = localStorage.getItem(`helpriders_essentials_${user.uid}`);
         return saved ? JSON.parse(saved) : [];
-      } catch (e) {
+      } catch {
         return [];
       }
     }
@@ -89,14 +106,15 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
   // Crew notifications states
   const [pendingFriendRequests, setPendingFriendRequests] = useState([]);
   const [pendingRideRequests, setPendingRideRequests] = useState([]);
+  const [dbNotifications, setDbNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [nearbyRides, setNearbyRides] = useState([]);
-  const [dismissedNearbyRides, setDismissedNearbyRides] = useState(() => {
+  const [, setDismissedNearbyRides] = useState(() => {
     try {
       const saved = localStorage.getItem('helpriders_dismissed_nearby_rides');
       return saved ? JSON.parse(saved) : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   });
@@ -284,12 +302,16 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
           }
         },
         () => {
-          setWeatherCity('Hyderabad, Telangana');
+          Promise.resolve().then(() => {
+            setWeatherCity('Hyderabad, Telangana');
+          });
           fetchWeather(17.3850, 78.4867, 'Hyderabad');
         }
       );
     } else {
-      setWeatherCity('Hyderabad, Telangana');
+      Promise.resolve().then(() => {
+        setWeatherCity('Hyderabad, Telangana');
+      });
       fetchWeather(17.3850, 78.4867, 'Hyderabad');
     }
   }, []);
@@ -316,6 +338,7 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
       }
     };
     fetchUserGarage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const fetchAllNotifications = async () => {
@@ -408,7 +431,9 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
         try {
           const saved = localStorage.getItem('helpriders_dismissed_nearby_rides');
           if (saved) Object.assign(savedDismissed, JSON.parse(saved));
-        } catch (e) {}
+        } catch {
+          // ignore
+        }
 
         const nearby = [];
         allRides.forEach(ride => {
@@ -442,10 +467,28 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
     } catch (err) {
       console.warn('Error fetching nearby rides from Supabase:', err);
     }
+
+    // 4. Fetch DB Notifications
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .or(`user_id.is.null,user_id.eq.${user.uid}`)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setDbNotifications(data);
+      }
+    } catch (err) {
+      console.warn('Error fetching DB notifications:', err);
+    }
   };
 
   useEffect(() => {
-    fetchAllNotifications();
+    Promise.resolve().then(() => {
+      fetchAllNotifications();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const handleAcceptFriendRequest = async (req) => {
@@ -608,9 +651,16 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
 
   useEffect(() => {
     const query = fuelStartLocation.trim();
-    if (startSelected || query.length < 1) { setStartSuggestions([]); return; }
+    if (startSelected || query.length < 1) {
+      Promise.resolve().then(() => {
+        setStartSuggestions([]);
+      });
+      return;
+    }
     const locals = getLocalCities(query);
-    setStartSuggestions(locals);
+    Promise.resolve().then(() => {
+      setStartSuggestions(locals);
+    });
     if (query.length >= 3 && navigator.onLine) {
       const timer = setTimeout(async () => {
         const res = await searchLocationInIndia(query);
@@ -628,9 +678,16 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
 
   useEffect(() => {
     const query = fuelDestination.trim();
-    if (destSelected || query.length < 1) { setDestSuggestions([]); return; }
+    if (destSelected || query.length < 1) {
+      Promise.resolve().then(() => {
+        setDestSuggestions([]);
+      });
+      return;
+    }
     const locals = getLocalCities(query);
-    setDestSuggestions(locals);
+    Promise.resolve().then(() => {
+      setDestSuggestions(locals);
+    });
     if (query.length >= 3 && navigator.onLine) {
       const timer = setTimeout(async () => {
         const res = await searchLocationInIndia(query);
@@ -649,25 +706,6 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
   const handleBikeSelect = (bikeName) => {
     setSelectedBike(bikeName);
     updateCalculations(bikeName, startCoords, destCoords, fuelDistance);
-  };
-
-  const updateCalculations = async (bike, sCoords, dCoords, currentDist, startLoc = fuelStartLocation, destLoc = fuelDestination, currentFuelType = fuelType) => {
-    setValidationError('');
-    const isHighway = currentDist > 100;
-    const specs = computeBikeSpecs(bike, 'Cruising (Scenic/Relaxed)', isHighway);
-    setBikeMileage(specs.mileage);
-    const startPrice = getFuelPriceForLocation(startLoc, currentFuelType);
-    setFuelPrice(startPrice);
-    if (sCoords && dCoords) {
-      let roadDist = calculateRoadDistance(sCoords.lat, sCoords.lon, dCoords.lat, dCoords.lon);
-      setFuelDistance(roadDist);
-      try {
-        const osrmDist = await getOSRMDistance(sCoords.lat, sCoords.lon, dCoords.lat, dCoords.lon);
-        if (osrmDist && osrmDist > 0) { roadDist = osrmDist; setFuelDistance(roadDist); }
-      } catch (err) { console.warn('OSRM distance lookup failed', err); }
-      const updatedSpecs = computeBikeSpecs(bike, 'Cruising (Scenic/Relaxed)', roadDist > 100);
-      setBikeMileage(updatedSpecs.mileage);
-    }
   };
 
   const handleSelectStartSuggestion = (city) => {
@@ -701,7 +739,7 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
   const essentialsCheckedCount = checkedEssentials.length;
 
   return (
-    <div className="home-dashboard scroll-y" style={{ padding: '20px 16px', maxWidth: '360px', margin: '0 auto' }}>
+    <div className="home-dashboard scroll-y page-container" style={{ padding: '20px 16px', maxWidth: '360px', margin: '0 auto' }}>
       
       {/* Header bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }} className="animate-fade-in">
@@ -720,26 +758,30 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
             }}
           >
             <Bell size={18} />
-            {(pendingFriendRequests.length + pendingRideRequests.length + nearbyRides.length) > 0 && (
-              <span style={{ 
-                position: 'absolute', 
-                top: '-4px', 
-                right: '-4px', 
-                background: 'var(--accent)', 
-                color: 'white', 
-                fontSize: '8px', 
-                fontWeight: 'bold', 
-                borderRadius: '50%', 
-                width: '16px', 
-                height: '16px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                border: '1.5px solid #0d0d12'
-              }}>
-                {pendingFriendRequests.length + pendingRideRequests.length + nearbyRides.length}
-              </span>
-            )}
+            {(() => {
+              const unreadDbCount = dbNotifications.filter(n => !n.is_read).length;
+              const totalCount = pendingFriendRequests.length + pendingRideRequests.length + nearbyRides.length + unreadDbCount;
+              return totalCount > 0 ? (
+                <span style={{ 
+                  position: 'absolute', 
+                  top: '-4px', 
+                  right: '-4px', 
+                  background: 'var(--accent)', 
+                  color: 'white', 
+                  fontSize: '8px', 
+                  fontWeight: 'bold', 
+                  borderRadius: '50%', 
+                  width: '16px', 
+                  height: '16px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  border: '1.5px solid #0d0d12'
+                }}>
+                  {totalCount}
+                </span>
+              ) : null;
+            })()}
           </button>
           <button 
             style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 'bold', border: 'none', color: 'white', cursor: 'pointer' }}
@@ -1161,7 +1203,7 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
               </button>
             </div>
 
-            {pendingRideRequests.length === 0 && pendingFriendRequests.length === 0 && nearbyRides.length === 0 ? (
+            {pendingRideRequests.length === 0 && pendingFriendRequests.length === 0 && nearbyRides.length === 0 && dbNotifications.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--text-muted)' }}>
                 <Bell size={32} style={{ margin: '0 auto 12px', opacity: 0.3, display: 'block' }} />
                 <p style={{ fontSize: '13px' }}>All quiet on the crew deck! 🏍️</p>
@@ -1169,6 +1211,48 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
+                {/* DB General Announcements Section */}
+                {dbNotifications.length > 0 && (
+                  <div>
+                    <h4 style={{ fontSize: '13px', color: 'var(--secondary)', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px', marginBottom: '10px', fontWeight: 'bold' }}>
+                      📢 Announcements & Alerts ({dbNotifications.length})
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {dbNotifications.map((notif) => (
+                        <div key={notif.id} style={{ background: notif.is_read ? 'rgba(255,255,255,0.02)' : 'rgba(255,85,0,0.06)', border: notif.is_read ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(255,85,0,0.2)', padding: '12px', borderRadius: '12px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', fontWeight: 'bold' }}>
+                            <span style={{ color: 'white', fontWeight: 'bold' }}>{notif.title}</span>
+                            {!notif.is_read && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const { error } = await supabase
+                                      .from('notifications')
+                                      .update({ is_read: true })
+                                      .eq('id', notif.id);
+                                    if (!error) {
+                                      setDbNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
+                                    }
+                                  } catch (err) {
+                                    console.warn(err);
+                                  }
+                                }}
+                                style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', padding: 0 }}
+                              >
+                                Mark Read
+                              </button>
+                            )}
+                          </div>
+                          <p style={{ color: 'var(--text-secondary)', margin: 0 }}>{notif.content}</p>
+                          <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            📅 {new Date(notif.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 
                 {/* Nearby Rides Section */}
                 {nearbyRides.length > 0 && (
@@ -1326,6 +1410,13 @@ export default function HomeDashboard({ user, onTabChange, onOpenDetails, openWi
                     setPendingRideRequests([]);
                     for (const req of rideReqsToDecline) {
                       await handleDeclineRideRequest(req.rideId, req.id, req.name);
+                    }
+                    
+                    // 4. Mark all DB notifications read
+                    const unreadIds = dbNotifications.filter(n => !n.is_read).map(n => n.id);
+                    if (unreadIds.length > 0) {
+                      await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds);
+                      setDbNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
                     }
                     
                     showToast('🧹 Cleared all notifications.');

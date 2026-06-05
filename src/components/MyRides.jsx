@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
-  History, Calendar, Heart, MapPin, Gauge, Fuel, Clock, 
-  DollarSign, Star, CloudSun, Film, ChevronDown, ChevronUp, Play, ExternalLink,
+  History, Calendar, Heart, MapPin, 
+  Star, CloudSun, ChevronDown, ChevronUp, ExternalLink,
   Trash2
 } from 'lucide-react';
 import { generateGoogleMapsLink, calculateRideDuration } from '../utils/geo';
@@ -171,7 +171,7 @@ const isRideTimePassed = (ride) => {
   return now > rideEndDateTime;
 };
 
-export default function MyRides({ user, rides, onOpenReplay, onEditRide, onDeleteRide, onToggleFavoriteRide, onCompleteRide }) {
+export default function MyRides({ user, rides, onEditRide, onDeleteRide, onToggleFavoriteRide, onCompleteRide }) {
   const [filter, setFilter] = useState('All'); // All, Upcoming, Completed, Saved
   const [expandedRideId, setExpandedRideId] = useState(null);
   const [confirmDeleteRideId, setConfirmDeleteRideId] = useState(null);
@@ -209,7 +209,7 @@ export default function MyRides({ user, rides, onOpenReplay, onEditRide, onDelet
   };
 
   return (
-    <div className="my-rides scroll-y" style={{ padding: '20px 16px', maxWidth: '360px', margin: '0 auto' }}>
+    <div className="my-rides scroll-y page-container" style={{ padding: '20px 16px', maxWidth: '360px', margin: '0 auto' }}>
       
       {/* Page Title */}
       <div style={{ marginBottom: '20px' }}>

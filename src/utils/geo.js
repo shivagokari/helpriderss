@@ -1118,7 +1118,7 @@ export function getCustomBikes() {
     const key = uid ? `helpriders_custom_bikes_${uid}` : 'helpriders_custom_bikes';
     const list = localStorage.getItem(key);
     return list ? JSON.parse(list) : [];
-  } catch (e) {
+  } catch {
     return [];
   }
 }
@@ -1212,11 +1212,11 @@ export function generateLocationWeather(lat, lon, dateString) {
   const isDesert = lat > 24.0 && lat < 28.0 && lon > 70.0 && lon < 76.0;
   const isSouthIndia = lat < 16.0;
   
-  let temperature = 27;
-  let conditions = 'Partly Cloudy';
-  let windSpeed = 12;
-  let humidity = 50;
-  let warning = '🟢 Optimal Telemetry: Normal winds. Excellent riding conditions.';
+  let temperature;
+  let conditions;
+  let windSpeed;
+  let humidity;
+  let warning;
   
   if (isHimalayas) {
     if (month >= 9 || month <= 2) { // Oct - Mar
@@ -1275,7 +1275,7 @@ export function generateLocationWeather(lat, lon, dateString) {
 export function parseGoogleMapsUrl(input) {
   if (!input) return null;
   // Clean optional brackets and parentheses from coordinates e.g. "(17.3, 78.4)" -> "17.3, 78.4"
-  const str = input.replace(/[()\[\]]/g, '').trim();
+  const str = input.replace(/[()[\]]/g, '').trim();
   
   // Case 1: Raw Coordinates (e.g. "17.3850, 78.4867" or "17.3850 78.4867")
   const coordsRegex = /^(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)$/;

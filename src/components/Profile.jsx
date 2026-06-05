@@ -1,19 +1,24 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  Award, Bike, PhoneCall, ShieldAlert, 
+  Award, Bike, PhoneCall, ShieldAlert, ShieldCheck,
   LogOut, Plus, Trash2,
-  Camera, MessageSquare, Send, X, MapPin, Headphones,
-  Copy, UserPlus, Search, Check, Ban, Bell, Share2, ChevronRight, Users,
+  Camera, MessageSquare, Send, X, Headphones,
+  Copy, UserPlus, Search, Check, Ban, Share2, ChevronRight, Users,
   Download, Lock
 } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import { BIKES_DATABASE } from '../utils/geo';
+import AdminDashboard from './AdminDashboard';
 
 // ─── Outside component to prevent keyboard re-mount ────────────────────────
 const inputStyle = { width: '100%', padding: '10px 12px', fontSize: '13px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', boxSizing: 'border-box' };
 const smallInputStyle = { flex: 1, padding: '8px 10px', fontSize: '11px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', boxSizing: 'border-box', minWidth: '0' };
 
 export default function Profile({ user, onLogout, rides, onInstallApp, isInstallable }) {
+  const [activeDocModal, setActiveDocModal] = useState(null); // 'rc' | 'license' | null
+  const [modalFlipped, setModalFlipped] = useState(false);
+  const [showAdminConsole, setShowAdminConsole] = useState(false);
+
   // ── Avatar ────────────────────────────────────────────────────────────────
   const [avatar, setAvatar] = useState(null);
   const fileInputRef = useRef(null);
@@ -78,8 +83,6 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
   const [rcBackUrl, setRcBackUrl] = useState('');
   const [licenseFrontUrl, setLicenseFrontUrl] = useState('');
   const [licenseBackUrl, setLicenseBackUrl] = useState('');
-  const [rcFlipped, setRcFlipped] = useState(false);
-  const [licenseFlipped, setLicenseFlipped] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState('');
 
   // Fetch all profile details from Supabase on mount
@@ -226,7 +229,7 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
       const path = `${user.uid}/${type}_${Date.now()}.${fileExt}`;
 
       // Upload to Supabase Storage bucket 'Documents' (exact bucket name)
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('Documents')
         .upload(path, compressedFile, { cacheControl: '3600', upsert: true });
 
@@ -443,7 +446,9 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
   }, [user]);
 
   useEffect(() => {
-    fetchFriendsAndRequests();
+    Promise.resolve().then(() => {
+      fetchFriendsAndRequests();
+    });
   }, [fetchFriendsAndRequests]);
 
   const handleSearchRider = async () => {
@@ -753,7 +758,9 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
 
   useEffect(() => {
     if (!user || !user.uid || !activeChatFriend) {
-      setMessagesList([]);
+      Promise.resolve().then(() => {
+        setMessagesList([]);
+      });
       return;
     }
 
@@ -910,6 +917,8 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
     navigator.clipboard.writeText(referralLink).then(() => showToast('✅ Referral link copied! Share with friends.'));
   };
 
+  const isAdmin = user && (user.email === 'admin@helpriderss.com' || user.level === 'System Administrator');
+
   // ── Badges (earned, not fake) ─────────────────────────────────────────────
   const badges = [];
   if (totalKMs >= 1000) badges.push({ title: 'Highway King', icon: '👑', color: '#ffaa00' });
@@ -917,8 +926,27 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
   if (garage.length >= 2) badges.push({ title: 'Multi-Machine', icon: '🔧', color: '#00b0ff' });
   if (emergencyContacts.length >= 1) badges.push({ title: 'Safety First', icon: '🛡️', color: '#ff2233' });
 
+  const handleModalCardClick = (e) => {
+    e.stopPropagation();
+    if (!modalFlipped) {
+      setModalFlipped(true);
+    } else {
+      setActiveDocModal(null);
+      setModalFlipped(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setActiveDocModal(null);
+    setModalFlipped(false);
+  };
+
+  if (showAdminConsole) {
+    return <AdminDashboard user={user} onClose={() => setShowAdminConsole(false)} />;
+  }
+
   return (
-    <div className="profile-section scroll-y mobile-compact-section" style={{ padding: '20px 16px', position: 'relative', width: '100%', maxWidth: '360px', margin: '0 auto', boxSizing: 'border-box' }}>
+    <div className="profile-section scroll-y mobile-compact-section page-container" style={{ padding: '20px 16px', position: 'relative', width: '100%', maxWidth: '360px', margin: '0 auto', boxSizing: 'border-box' }}>
 
       {/* Profile Header */}
       <div style={{ textAlign: 'center', marginBottom: '20px' }} className="animate-fade-in">
@@ -938,6 +966,38 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
         <h2 className="profile-name" style={{ fontSize: '22px', color: 'white', marginBottom: '2px' }}>{user?.displayName || 'My Profile'}</h2>
         <span className="profile-level" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Level {levelNum} — {levelName}</span>
       </div>
+
+      {/* Admin Panel Trigger Banner */}
+      {isAdmin && (
+        <div 
+          onClick={() => setShowAdminConsole(true)}
+          className="glass-panel" 
+          style={{ 
+            padding: '14px 16px', 
+            marginBottom: '16px', 
+            background: 'linear-gradient(135deg, rgba(255, 85, 0, 0.15) 0%, rgba(255, 170, 0, 0.1) 100%)', 
+            border: '1.5px solid rgba(255, 85, 0, 0.3)',
+            borderRadius: '14px',
+            cursor: 'pointer',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            boxShadow: '0 4px 20px rgba(255, 85, 0, 0.15)',
+            transition: 'transform 0.2s ease, border-color 0.2s ease'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ background: 'var(--primary)', borderRadius: '10px', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 10px rgba(255, 85, 0, 0.4)' }}>
+              <ShieldCheck size={20} color="white" />
+            </div>
+            <div style={{ textAlign: 'left' }}>
+              <strong style={{ fontSize: '13.5px', color: 'white', display: 'block' }}>System Administration</strong>
+              <span style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}>Manage riders, mechanics, stores & reports</span>
+            </div>
+          </div>
+          <ChevronRight size={18} color="var(--primary)" />
+        </div>
+      )}
 
       {/* Unique Rider ID Card */}
       <div className="glass-panel unique-id-card" style={{ padding: '14px 16px', marginBottom: '16px', background: 'linear-gradient(135deg, rgba(255,85,0,0.08) 0%, rgba(255,170,0,0.05) 100%)', border: '1px solid rgba(255,170,0,0.2)' }}>
@@ -1248,297 +1308,292 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
         </form>
       </div>
 
-      {/* Biker Documents (License & RC) */}
+      {/* Biker Documents (License & RC) Preview Cards */}
       <div className="glass-panel" style={{ padding: '16px', marginBottom: '16px' }}>
         <h4 style={{ fontSize: '15px', color: 'white', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Award size={16} color="var(--primary)" /> Biker Documents (License & RC)
         </h4>
         <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: '1.4' }}>
-          Tap a card to flip and view the back side. Tap the camera icon in the corner to upload or update.
+          Tap a card to open in a full-screen 3D viewer. Tap the camera icon to upload or update.
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          {/* DRIVING LICENSE CARD */}
-          <div style={{ perspective: '1000px', width: '100%', height: '140px' }}>
-            <div 
-              onClick={() => setLicenseFlipped(!licenseFlipped)}
+          {/* DRIVING LICENSE CARD PREVIEW */}
+          <div 
+            onClick={() => { setActiveDocModal('license'); setModalFlipped(false); }}
+            style={{
+              position: 'relative',
+              width: '100%',
+              height: '140px',
+              background: '#121216',
+              border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              cursor: 'pointer',
+              padding: '6px'
+            }}
+          >
+            {uploadingDoc === 'license_front' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{ width: '20px', height: '20px', border: '2px solid transparent', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
+                <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '6px' }}>Uploading...</span>
+              </div>
+            ) : licenseFrontUrl ? (
+              <img src={licenseFrontUrl} alt="License Front Preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
+            ) : (
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px' }}>
+                <span style={{ fontSize: '20px', display: 'block', marginBottom: '4px' }}>🪪</span>
+                <span style={{ fontSize: '10px', fontWeight: 'bold', color: 'white', display: 'block' }}>Driving License</span>
+                <span style={{ fontSize: '8px', opacity: 0.5, marginTop: '2px', display: 'block' }}>Tap to view / upload</span>
+              </div>
+            )}
+            {/* Camera Upload Overlay */}
+            <label 
+              onClick={(e) => e.stopPropagation()} 
               style={{
-                position: 'relative',
-                width: '100%',
-                height: '100%',
-                transition: 'transform 0.6s',
-                transformStyle: 'preserve-3d',
-                transform: licenseFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
-                cursor: 'pointer'
+                position: 'absolute',
+                right: '6px',
+                bottom: '6px',
+                background: 'rgba(0,0,0,0.75)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '50%',
+                width: '26px',
+                height: '26px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: 'white',
+                zIndex: 10
               }}
             >
-              {/* Front Side */}
-              <div style={{
-                position: 'absolute',
-                width: '100%',
-                height: '100%',
-                backfaceVisibility: 'hidden',
-                WebkitBackfaceVisibility: 'hidden',
-                background: '#121216',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: '12px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                padding: '6px'
-              }}>
-                {uploadingDoc === 'license_front' ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <div style={{ width: '20px', height: '20px', border: '2px solid transparent', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
-                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '6px' }}>Uploading...</span>
-                  </div>
-                ) : licenseFrontUrl ? (
-                  <img src={licenseFrontUrl} alt="License Front" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
-                ) : (
-                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px' }}>
-                    <span style={{ fontSize: '20px', display: 'block', marginBottom: '4px' }}>🪪</span>
-                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: 'white', display: 'block' }}>License Front</span>
-                    <span style={{ fontSize: '8px', opacity: 0.5, marginTop: '2px', display: 'block' }}>Tap card to flip</span>
-                  </div>
-                )}
-                {/* Upload button overlay */}
-                <label 
-                  onClick={(e) => e.stopPropagation()} 
-                  style={{
-                    position: 'absolute',
-                    right: '6px',
-                    bottom: '6px',
-                    background: 'rgba(0,0,0,0.75)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: '50%',
-                    width: '26px',
-                    height: '26px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    color: 'white',
-                    zIndex: 10
-                  }}
-                >
-                  <Camera size={12} />
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={(e) => handleDocumentUpload(e, 'license_front')} 
-                    style={{ display: 'none' }} 
-                  />
-                </label>
-              </div>
-
-              {/* Back Side */}
-              <div style={{
-                position: 'absolute',
-                width: '100%',
-                height: '100%',
-                backfaceVisibility: 'hidden',
-                WebkitBackfaceVisibility: 'hidden',
-                transform: 'rotateY(180deg)',
-                background: '#121216',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: '12px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                padding: '6px'
-              }}
-              className="flip-card-back-side"
-              >
-                {uploadingDoc === 'license_back' ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <div style={{ width: '20px', height: '20px', border: '2px solid transparent', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
-                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '6px' }}>Uploading...</span>
-                  </div>
-                ) : licenseBackUrl ? (
-                  <img src={licenseBackUrl} alt="License Back" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
-                ) : (
-                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px' }}>
-                    <span style={{ fontSize: '20px', display: 'block', marginBottom: '4px' }}>🪪</span>
-                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: 'white', display: 'block' }}>License Back</span>
-                    <span style={{ fontSize: '8px', opacity: 0.5, marginTop: '2px', display: 'block' }}>Tap card to flip</span>
-                  </div>
-                )}
-                {/* Upload button overlay */}
-                <label 
-                  onClick={(e) => e.stopPropagation()} 
-                  style={{
-                    position: 'absolute',
-                    left: '6px',
-                    bottom: '6px',
-                    background: 'rgba(0,0,0,0.75)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: '50%',
-                    width: '26px',
-                    height: '26px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    color: 'white',
-                    zIndex: 10
-                  }}
-                >
-                  <Camera size={12} />
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={(e) => handleDocumentUpload(e, 'license_back')} 
-                    style={{ display: 'none' }} 
-                  />
-                </label>
-              </div>
-            </div>
+              <Camera size={12} />
+              <input 
+                type="file" 
+                accept="image/*" 
+                onChange={(e) => handleDocumentUpload(e, 'license_front')} 
+                style={{ display: 'none' }} 
+              />
+            </label>
           </div>
 
-          {/* BIKE RC CARD */}
-          <div style={{ perspective: '1000px', width: '100%', height: '140px' }}>
-            <div 
-              onClick={() => setRcFlipped(!rcFlipped)}
+          {/* BIKE RC CARD PREVIEW */}
+          <div 
+            onClick={() => { setActiveDocModal('rc'); setModalFlipped(false); }}
+            style={{
+              position: 'relative',
+              width: '100%',
+              height: '140px',
+              background: '#121216',
+              border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              cursor: 'pointer',
+              padding: '6px'
+            }}
+          >
+            {uploadingDoc === 'rc_front' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{ width: '20px', height: '20px', border: '2px solid transparent', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
+                <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '6px' }}>Uploading...</span>
+              </div>
+            ) : rcFrontUrl ? (
+              <img src={rcFrontUrl} alt="RC Front Preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
+            ) : (
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px' }}>
+                <span style={{ fontSize: '20px', display: 'block', marginBottom: '4px' }}>📄</span>
+                <span style={{ fontSize: '10px', fontWeight: 'bold', color: 'white', display: 'block' }}>Bike RC</span>
+                <span style={{ fontSize: '8px', opacity: 0.5, marginTop: '2px', display: 'block' }}>Tap to view / upload</span>
+              </div>
+            )}
+            {/* Camera Upload Overlay */}
+            <label 
+              onClick={(e) => e.stopPropagation()} 
               style={{
-                position: 'relative',
-                width: '100%',
-                height: '100%',
-                transition: 'transform 0.6s',
-                transformStyle: 'preserve-3d',
-                transform: rcFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
-                cursor: 'pointer'
+                position: 'absolute',
+                right: '6px',
+                bottom: '6px',
+                background: 'rgba(0,0,0,0.75)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '50%',
+                width: '26px',
+                height: '26px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: 'white',
+                zIndex: 10
               }}
             >
-              {/* Front Side */}
-              <div style={{
-                position: 'absolute',
-                width: '100%',
-                height: '100%',
-                backfaceVisibility: 'hidden',
-                WebkitBackfaceVisibility: 'hidden',
-                background: '#121216',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: '12px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                padding: '6px'
-              }}>
-                {uploadingDoc === 'rc_front' ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <div style={{ width: '20px', height: '20px', border: '2px solid transparent', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
-                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '6px' }}>Uploading...</span>
-                  </div>
-                ) : rcFrontUrl ? (
-                  <img src={rcFrontUrl} alt="RC Front" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
-                ) : (
-                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px' }}>
-                    <span style={{ fontSize: '20px', display: 'block', marginBottom: '4px' }}>📄</span>
-                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: 'white', display: 'block' }}>RC Front</span>
-                    <span style={{ fontSize: '8px', opacity: 0.5, marginTop: '2px', display: 'block' }}>Tap card to flip</span>
-                  </div>
-                )}
-                {/* Upload button overlay */}
-                <label 
-                  onClick={(e) => e.stopPropagation()} 
-                  style={{
-                    position: 'absolute',
-                    right: '6px',
-                    bottom: '6px',
-                    background: 'rgba(0,0,0,0.75)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: '50%',
-                    width: '26px',
-                    height: '26px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    color: 'white',
-                    zIndex: 10
-                  }}
-                >
-                  <Camera size={12} />
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={(e) => handleDocumentUpload(e, 'rc_front')} 
-                    style={{ display: 'none' }} 
-                  />
-                </label>
-              </div>
-
-              {/* Back Side */}
-              <div style={{
-                position: 'absolute',
-                width: '100%',
-                height: '100%',
-                backfaceVisibility: 'hidden',
-                WebkitBackfaceVisibility: 'hidden',
-                transform: 'rotateY(180deg)',
-                background: '#121216',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: '12px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                padding: '6px'
-              }}>
-                {uploadingDoc === 'rc_back' ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <div style={{ width: '20px', height: '20px', border: '2px solid transparent', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'dash 1s linear infinite' }} />
-                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '6px' }}>Uploading...</span>
-                  </div>
-                ) : rcBackUrl ? (
-                  <img src={rcBackUrl} alt="RC Back" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
-                ) : (
-                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px' }}>
-                    <span style={{ fontSize: '20px', display: 'block', marginBottom: '4px' }}>📄</span>
-                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: 'white', display: 'block' }}>RC Back</span>
-                    <span style={{ fontSize: '8px', opacity: 0.5, marginTop: '2px', display: 'block' }}>Tap card to flip</span>
-                  </div>
-                )}
-                {/* Upload button overlay */}
-                <label 
-                  onClick={(e) => e.stopPropagation()} 
-                  style={{
-                    position: 'absolute',
-                    left: '6px',
-                    bottom: '6px',
-                    background: 'rgba(0,0,0,0.75)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: '50%',
-                    width: '26px',
-                    height: '26px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    color: 'white',
-                    zIndex: 10
-                  }}
-                >
-                  <Camera size={12} />
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={(e) => handleDocumentUpload(e, 'rc_back')} 
-                    style={{ display: 'none' }} 
-                  />
-                </label>
-              </div>
-            </div>
+              <Camera size={12} />
+              <input 
+                type="file" 
+                accept="image/*" 
+                onChange={(e) => handleDocumentUpload(e, 'rc_front')} 
+                style={{ display: 'none' }} 
+              />
+            </label>
           </div>
         </div>
       </div>
+
+      {/* 3D Document Flipping Modal */}
+      {activeDocModal && (
+        <div 
+          className="doc-modal-overlay animate-fade-in" 
+          onClick={handleCloseModal}
+        >
+          <div className="doc-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 8px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>
+                {activeDocModal === 'license' ? 'Driving License' : 'Bike Registration (RC)'}
+              </span>
+              <button 
+                onClick={handleCloseModal}
+                style={{
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: 'white'
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flip-card-3d-wrapper" onClick={handleModalCardClick}>
+              <div className={`flip-card-3d-inner ${modalFlipped ? 'flipped' : ''}`}>
+                
+                {/* Front Side */}
+                <div className="flip-card-3d-front">
+                  {activeDocModal === 'license' ? (
+                    licenseFrontUrl ? (
+                      <img src={licenseFrontUrl} alt="License Front" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
+                        <span style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>🪪</span>
+                        <span style={{ fontSize: '14px', fontWeight: 'bold', color: 'white', display: 'block' }}>License Front</span>
+                        <span style={{ fontSize: '11px', opacity: 0.5, marginTop: '4px', display: 'block' }}>Not Uploaded</span>
+                      </div>
+                    )
+                  ) : (
+                    rcFrontUrl ? (
+                      <img src={rcFrontUrl} alt="RC Front" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
+                        <span style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>📄</span>
+                        <span style={{ fontSize: '14px', fontWeight: 'bold', color: 'white', display: 'block' }}>RC Front</span>
+                        <span style={{ fontSize: '11px', opacity: 0.5, marginTop: '4px', display: 'block' }}>Not Uploaded</span>
+                      </div>
+                    )
+                  )}
+                  {/* Upload button overlay inside modal front */}
+                  <label 
+                    onClick={(e) => e.stopPropagation()} 
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      bottom: '12px',
+                      background: 'rgba(0,0,0,0.75)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: '50%',
+                      width: '32px',
+                      height: '32px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: 'white',
+                      zIndex: 10
+                    }}
+                  >
+                    <Camera size={14} />
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => handleDocumentUpload(e, activeDocModal === 'license' ? 'license_front' : 'rc_front')} 
+                      style={{ display: 'none' }} 
+                    />
+                  </label>
+                </div>
+
+                {/* Back Side */}
+                <div className="flip-card-3d-back">
+                  {activeDocModal === 'license' ? (
+                    licenseBackUrl ? (
+                      <img src={licenseBackUrl} alt="License Back" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
+                        <span style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>🪪</span>
+                        <span style={{ fontSize: '14px', fontWeight: 'bold', color: 'white', display: 'block' }}>License Back</span>
+                        <span style={{ fontSize: '11px', opacity: 0.5, marginTop: '4px', display: 'block' }}>Not Uploaded</span>
+                      </div>
+                    )
+                  ) : (
+                    rcBackUrl ? (
+                      <img src={rcBackUrl} alt="RC Back" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
+                        <span style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>📄</span>
+                        <span style={{ fontSize: '14px', fontWeight: 'bold', color: 'white', display: 'block' }}>RC Back</span>
+                        <span style={{ fontSize: '11px', opacity: 0.5, marginTop: '4px', display: 'block' }}>Not Uploaded</span>
+                      </div>
+                    )
+                  )}
+                  {/* Upload button overlay inside modal back */}
+                  <label 
+                    onClick={(e) => e.stopPropagation()} 
+                    style={{
+                      position: 'absolute',
+                      left: '12px',
+                      bottom: '12px',
+                      background: 'rgba(0,0,0,0.75)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: '50%',
+                      width: '32px',
+                      height: '32px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: 'white',
+                      zIndex: 10
+                    }}
+                  >
+                    <Camera size={14} />
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => handleDocumentUpload(e, activeDocModal === 'license' ? 'license_back' : 'rc_back')} 
+                      style={{ display: 'none' }} 
+                    />
+                  </label>
+                </div>
+
+              </div>
+            </div>
+
+            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', textAlign: 'center', opacity: 0.8 }}>
+              {!modalFlipped ? 'Tap card to flip and view back' : 'Tap card again to close'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Emergency SOS Contacts */}
       <div className="glass-panel" style={{ padding: '16px', borderLeft: '3px solid var(--accent)', marginBottom: '16px' }}>

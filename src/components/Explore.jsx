@@ -1,8 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Compass, MapPin, Search, Navigation, Eye, 
-  Map, Fuel, ShieldAlert, Wrench, Shield, Info, Radio, RefreshCw
-} from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { MapPin, Search, Radio, RefreshCw } from 'lucide-react';
 import { searchLocationInIndia, INDIAN_CITIES } from '../utils/geo';
 
 export default function Explore() {
@@ -15,7 +12,6 @@ export default function Explore() {
   // Suggestions search states
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
-  const [validationError, setValidationError] = useState('');
 
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
@@ -59,12 +55,16 @@ export default function Explore() {
   useEffect(() => {
     const query = searchQuery.trim();
     if (query.length < 1) {
-      setSuggestions([]);
+      Promise.resolve().then(() => {
+        setSuggestions([]);
+      });
       return;
     }
 
     const locals = getLocalCities(query);
-    setSuggestions(locals);
+    Promise.resolve().then(() => {
+      setSuggestions(locals);
+    });
 
     if (query.length >= 3 && navigator.onLine) {
       const timer = setTimeout(async () => {
@@ -175,7 +175,6 @@ export default function Explore() {
   const handleSelectSuggestion = (city) => {
     setSearchQuery(city.name);
     setSuggestions([]);
-    setValidationError('');
     
     if (mapInstance.current) {
       // Pan map directly to the geocoded location

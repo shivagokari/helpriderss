@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { 
-  Home, PlusCircle, History, Map, User, Users, X, Info, 
-  Download, Navigation, CheckCircle, ShieldAlert, Sparkles, Bell, Phone
+  Home, PlusCircle, History, User, Users, X, Info, 
+  Download, Navigation, ShieldAlert, Sparkles, Bell, Phone,
+  Wrench, Sliders
 } from 'lucide-react';
 import LoginScreen from './components/LoginScreen';
 import HomeDashboard from './components/HomeDashboard';
-import { generateGoogleMapsLink, calculateRideDuration } from './utils/geo';
+import { calculateRideDuration } from './utils/geo';
 import { supabase } from './utils/supabase';
 
 // Lazily load heavier sub-screens and modals for code splitting and faster initial load
@@ -13,6 +14,8 @@ const NewRideWizard = lazy(() => import('./components/NewRideWizard'));
 const MyRides = lazy(() => import('./components/MyRides'));
 const LetsRide = lazy(() => import('./components/LetsRide'));
 const Profile = lazy(() => import('./components/Profile'));
+const MechanicsTab = lazy(() => import('./components/MechanicsTab'));
+const ModsTab = lazy(() => import('./components/ModsTab'));
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -45,7 +48,9 @@ export default function App() {
     if (user) {
       const firstLogin = localStorage.getItem('helpriders_first_login');
       if (firstLogin === 'true') {
-        setShowWelcomePopup(true);
+        Promise.resolve().then(() => {
+          setShowWelcomePopup(true);
+        });
       }
     }
   }, [user]);
@@ -68,17 +73,26 @@ export default function App() {
       const saved = localStorage.getItem(`helpriders_custom_rides_${user.uid}`);
       if (saved) {
         try {
-          setCustomRides(JSON.parse(saved));
+          const parsed = JSON.parse(saved);
+          Promise.resolve().then(() => {
+            setCustomRides(parsed);
+          });
         } catch (e) {
           console.warn("Failed to parse saved user rides", e);
-          setCustomRides([]);
+          Promise.resolve().then(() => {
+            setCustomRides([]);
+          });
         }
       } else {
-        setCustomRides([]);
+        Promise.resolve().then(() => {
+          setCustomRides([]);
+        });
       }
       loadedUserIdRef.current = user.uid;
     } else {
-      setCustomRides([]);
+      Promise.resolve().then(() => {
+        setCustomRides([]);
+      });
       loadedUserIdRef.current = null;
     }
   }, [user]);
@@ -89,6 +103,20 @@ export default function App() {
       localStorage.setItem(`helpriders_custom_rides_${user.uid}`, JSON.stringify(customRides));
     }
   }, [customRides, user]);
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn("Failed to sign out from Supabase Auth:", e);
+    }
+    localStorage.removeItem('helpriders_session');
+    sessionStorage.removeItem('helpriders_session');
+    localStorage.removeItem('helpriders_first_login');
+    setCustomRides([]);
+    setUser(null);
+    setActiveTab('home');
+  };
 
   // Silently check and verify the Supabase session in the background
   useEffect(() => {
@@ -104,6 +132,7 @@ export default function App() {
           console.warn('[Auth] Background session verification failed (possibly offline):', err.message);
         });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Check PWA Install availability
@@ -164,20 +193,6 @@ export default function App() {
 
   const isAdmin = user?.email === 'admin@helpriderss.com' || user?.level === 'System Administrator';
   const unreadDevCount = devContacts.filter(c => !c.is_read).length;
-
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.warn("Failed to sign out from Supabase Auth:", e);
-    }
-    localStorage.removeItem('helpriders_session');
-    sessionStorage.removeItem('helpriders_session');
-    localStorage.removeItem('helpriders_first_login');
-    setCustomRides([]);
-    setUser(null);
-    setActiveTab('home');
-  };
 
   const handleSaveRide = (newRide) => {
     const isEdit = customRides.some(r => r.id === newRide.id);
@@ -266,7 +281,9 @@ export default function App() {
 
   // Show bottom nav on tab changes
   useEffect(() => {
-    setShowBottomNav(true);
+    Promise.resolve().then(() => {
+      setShowBottomNav(true);
+    });
   }, [activeTab]);
 
   if (!user) {
@@ -374,6 +391,10 @@ export default function App() {
           
           {activeTab === 'lets-ride' && <LetsRide user={user} />}
           
+          {activeTab === 'mechanics' && <MechanicsTab user={user} />}
+          
+          {activeTab === 'mods' && <ModsTab user={user} />}
+          
           {activeTab === 'profile' && (
             <Profile 
               user={user} 
@@ -387,7 +408,7 @@ export default function App() {
       </div>
 
       {/* Floating Action Button (Quick New Ride Wizard Trigger) */}
-      {activeTab !== 'profile' && activeTab !== 'lets-ride' && (
+      {activeTab !== 'profile' && activeTab !== 'lets-ride' && activeTab !== 'mechanics' && activeTab !== 'mods' && (
         <button 
           className="fab" 
           onClick={() => setNewRideOpen(true)}
@@ -403,7 +424,7 @@ export default function App() {
 
       {/* Bottom Navigation Menu */}
       <nav 
-        className="glass-panel" 
+        className="glass-panel bottom-nav" 
         style={{ 
           position: 'absolute', 
           bottom: '0', 
@@ -432,14 +453,6 @@ export default function App() {
         </button>
 
         <button 
-          onClick={() => setNewRideOpen(true)} 
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', color: newRideOpen ? 'var(--primary)' : 'var(--text-secondary)' }}
-        >
-          <PlusCircle size={20} />
-          <span style={{ fontSize: '9px' }}>New Ride</span>
-        </button>
-
-        <button 
           onClick={() => setActiveTab('my-rides')} 
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', color: activeTab === 'my-rides' ? 'var(--primary)' : 'var(--text-secondary)' }}
         >
@@ -453,6 +466,22 @@ export default function App() {
         >
           <Users size={20} />
           <span style={{ fontSize: '9px', fontWeight: activeTab === 'lets-ride' ? 'bold' : 'normal' }}>Let's Ride</span>
+        </button>
+
+        <button 
+          onClick={() => setActiveTab('mechanics')} 
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', color: activeTab === 'mechanics' ? 'var(--primary)' : 'var(--text-secondary)' }}
+        >
+          <Wrench size={20} />
+          <span style={{ fontSize: '9px', fontWeight: activeTab === 'mechanics' ? 'bold' : 'normal' }}>Mechanics</span>
+        </button>
+
+        <button 
+          onClick={() => setActiveTab('mods')} 
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', color: activeTab === 'mods' ? 'var(--primary)' : 'var(--text-secondary)' }}
+        >
+          <Sliders size={20} />
+          <span style={{ fontSize: '9px', fontWeight: activeTab === 'mods' ? 'bold' : 'normal' }}>Mods</span>
         </button>
 
         <button 

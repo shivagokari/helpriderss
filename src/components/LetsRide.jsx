@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
-  Users, MapPin, Calendar, Clock, PlusCircle, AlertTriangle, 
-  CheckCircle, MessageSquare, Phone, Bike, Compass, X, ShieldAlert,
-  RotateCw
+  MapPin, Calendar, Clock, PlusCircle, AlertTriangle, 
+  Phone, Bike, Compass, X, ShieldAlert, RotateCw
 } from 'lucide-react';
-import { BIKES_DATABASE, INDIAN_CITIES, searchLocationInIndia } from '../utils/geo';
+import { BIKES_DATABASE } from '../utils/geo';
 import { supabase } from '../utils/supabase';
 
 const parseTimeParts = (timeStr) => {
@@ -17,7 +16,7 @@ const parseTimeParts = (timeStr) => {
   if (parts.length >= 2) {
     let hh = parseInt(parts[0], 10);
     const mm = parts[1];
-    let period = 'AM';
+    let period;
     if (isPM) period = 'PM';
     else if (isAM) period = 'AM';
     else {
@@ -29,31 +28,6 @@ const parseTimeParts = (timeStr) => {
   }
   return { hour: '12', minute: '00', period: 'AM' };
 };
-
-const suggestionDropdownStyle = {
-  position: 'absolute',
-  top: '100%',
-  left: 0,
-  right: 0,
-  zIndex: 150,
-  background: 'rgba(18, 18, 22, 0.98)',
-  border: '1.5px solid var(--glass-border)',
-  borderRadius: '10px',
-  marginTop: '4px',
-  maxHeight: '150px',
-  overflowY: 'auto',
-  boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-  backdropFilter: 'blur(10px)'
-};
-
-const suggestionItemStyle = (idx, total) => ({
-  padding: '10px 12px',
-  fontSize: '12px',
-  color: 'white',
-  cursor: 'pointer',
-  borderBottom: idx < total - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-  textAlign: 'left'
-});
 
 const formatDisplayDate = (dateStr) => {
   if (!dateStr) return '';
@@ -82,6 +56,7 @@ export default function LetsRide({ user }) {
   const [selectedRide, setSelectedRide] = useState(null);
   const [editingSocialRide, setEditingSocialRide] = useState(null);
   const [confirmCancelRide, setConfirmCancelRide] = useState(null);
+  const [letsRideStatus, setLetsRideStatus] = useState('Approved');
   const isAdmin = user && (user.email === 'admin@helpriderss.com' || user.level === 'System Administrator');
   
   // New Ride Form State
@@ -108,67 +83,15 @@ export default function LetsRide({ user }) {
   });
 
   const [bikeSuggestions, setBikeSuggestions] = useState([]);
-  const [startSuggestions, setStartSuggestions] = useState([]);
-  const [destSuggestions, setDestSuggestions] = useState([]);
-  const [meetSuggestions, setMeetSuggestions] = useState([]);
-
-  const [startSelected, setStartSelected] = useState(false);
-  const [destSelected, setDestSelected] = useState(false);
-  const [meetSelected, setMeetSelected] = useState(false);
-
-  const [startTimer, setStartTimer] = useState(null);
-  const handleStartChange = (val) => {
-    handlePostInputChange('startPoint', val);
-    setStartSelected(false);
-    if (startTimer) clearTimeout(startTimer);
-    if (!val.trim()) {
-      setStartSuggestions([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      const res = await searchLocationInIndia(val);
-      setStartSuggestions(res || []);
-    }, 300);
-    setStartTimer(timer);
-  };
-
-  const [destTimer, setDestTimer] = useState(null);
-  const handleDestChange = (val) => {
-    handlePostInputChange('destination', val);
-    setDestSelected(false);
-    if (destTimer) clearTimeout(destTimer);
-    if (!val.trim()) {
-      setDestSuggestions([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      const res = await searchLocationInIndia(val);
-      setDestSuggestions(res || []);
-    }, 300);
-    setDestTimer(timer);
-  };
-
-  const [meetTimer, setMeetTimer] = useState(null);
-  const handleMeetChange = (val) => {
-    handlePostInputChange('meetingPoint', val);
-    setMeetSelected(false);
-    if (meetTimer) clearTimeout(meetTimer);
-    if (!val.trim()) {
-      setMeetSuggestions([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      const res = await searchLocationInIndia(val);
-      setMeetSuggestions(res || []);
-    }, 300);
-    setMeetTimer(timer);
-  };
+  const [, setStartSelected] = useState(false);
+  const [, setDestSelected] = useState(false);
+  const [, setMeetSelected] = useState(false);
+  const [, setNotifications] = useState([]);
 
   const handleJoinPhoneChange = (val) => {
     const clean = val.replace(/[^0-9]/g, '').slice(0, 10);
     handleJoinInputChange('phone', clean);
   };
-  const [notifications, setNotifications] = useState([]);
   const [activeNotification, setActiveNotification] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   
@@ -222,6 +145,18 @@ export default function LetsRide({ user }) {
   // Load rides & notifications from Supabase
   const fetchCommunityRides = async () => {
     try {
+      if (user && user.uid) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('lets_ride_status')
+          .eq('id', user.uid)
+          .maybeSingle();
+        
+        if (profile && profile.lets_ride_status) {
+          setLetsRideStatus(profile.lets_ride_status);
+        }
+      }
+
       const { data, error } = await supabase
         .from('rides')
         .select('*')
@@ -256,7 +191,10 @@ export default function LetsRide({ user }) {
   };
 
   useEffect(() => {
-    fetchCommunityRides();
+    Promise.resolve().then(() => {
+      fetchCommunityRides();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleRefreshFeed = async () => {
@@ -473,6 +411,10 @@ export default function LetsRide({ user }) {
   };
 
   const handleEditClick = (ride) => {
+    if (letsRideStatus === 'Suspended') {
+      showToast('🚫 Access Suspended: You cannot edit rides.');
+      return;
+    }
     setEditingSocialRide(ride);
     const routeParts = ride.route ? ride.route.split(' ➔ ') : ['', ''];
     setNewRide({
@@ -495,6 +437,10 @@ export default function LetsRide({ user }) {
 
   // Trigger Safety Modal before Join Submission
   const handleJoinClick = (ride) => {
+    if (letsRideStatus === 'Suspended') {
+      showToast('🚫 Access Suspended: You cannot join rides.');
+      return;
+    }
     if (user) {
       const alreadyRequested = ride.joinRequests?.some(req => req.user_id === user.uid);
       if (alreadyRequested) {
@@ -730,7 +676,7 @@ export default function LetsRide({ user }) {
   };
 
   return (
-    <div className="lets-ride-section scroll-y" style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: '20px', height: '100%', maxWidth: '360px', margin: '0 auto' }}>
+    <div className="lets-ride-section scroll-y page-container" style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: '20px', height: '100%', maxWidth: '360px', margin: '0 auto' }}>
       
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -743,7 +689,13 @@ export default function LetsRide({ user }) {
         <button 
           className="btn-primary" 
           style={{ padding: '8px 14px', borderRadius: '10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-          onClick={() => setShowPostModal(true)}
+          onClick={() => {
+            if (letsRideStatus === 'Suspended') {
+              showToast('🚫 Access Suspended: You cannot host new rides.');
+            } else {
+              setShowPostModal(true);
+            }
+          }}
         >
           <PlusCircle size={16} /> Post a Ride
         </button>
@@ -752,6 +704,31 @@ export default function LetsRide({ user }) {
       <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.4', marginTop: '-10px' }}>
         Don't ride alone! Explore rides posted by other community members, or post your own trip plan to gather a crew.
       </p>
+
+      {/* Account Suspended Notice */}
+      {letsRideStatus === 'Suspended' && (
+        <div 
+          className="glass-panel animate-zoom-in" 
+          style={{ 
+            padding: '14px 16px', 
+            background: 'linear-gradient(135deg, rgba(255, 34, 51, 0.15) 0%, rgba(18, 18, 22, 0.95) 100%)', 
+            border: '1.5px solid rgba(255, 34, 51, 0.35)', 
+            borderRadius: '12px',
+            display: 'flex', 
+            gap: '12px', 
+            alignItems: 'flex-start',
+            boxShadow: '0 4px 20px rgba(255, 34, 51, 0.15)'
+          }}
+        >
+          <ShieldAlert color="var(--accent)" size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div>
+            <strong style={{ fontSize: '13.5px', color: 'white', display: 'block' }}>Let's Ride Posting Blocked</strong>
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.4', display: 'block', marginTop: '2px' }}>
+              Your account access has been suspended by the administrator. You are restricted from hosting or joining any community rides.
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Ride Creator Notifications Banner */}
       {activeNotification && (
