@@ -918,7 +918,7 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
   if (emergencyContacts.length >= 1) badges.push({ title: 'Safety First', icon: '🛡️', color: '#ff2233' });
 
   return (
-    <div className="profile-section scroll-y mobile-compact-section" style={{ padding: '20px 16px', position: 'relative', width: '100%', maxWidth: '480px', margin: '0 auto', boxSizing: 'border-box' }}>
+    <div className="profile-section scroll-y mobile-compact-section" style={{ padding: '20px 16px', position: 'relative', width: '100%', maxWidth: '360px', margin: '0 auto', boxSizing: 'border-box' }}>
 
       {/* Profile Header */}
       <div style={{ textAlign: 'center', marginBottom: '20px' }} className="animate-fade-in">
@@ -944,7 +944,7 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Your Unique Rider ID</span>
-            <div className="unique-id-code" style={{ fontSize: '22px', fontWeight: 'bold', color: 'var(--secondary)', letterSpacing: '2px', marginTop: '2px', whiteSpace: 'nowrap' }}>{uniqueId}</div>
+            <div className="unique-id-code" style={{ fontSize: '22px', fontWeight: 'bold', color: 'var(--secondary)', letterSpacing: '2px', marginTop: '2px' }}>{uniqueId}</div>
             <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Share this ID so friends can find you</span>
           </div>
           <button onClick={copyUniqueId} style={{ background: 'rgba(255,170,0,0.15)', border: '1px solid rgba(255,170,0,0.3)', borderRadius: '10px', padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--secondary)', fontWeight: 'bold', fontSize: '12px' }}>
@@ -956,8 +956,8 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
       {/* Gamification Progress Bar */}
       <div className="glass-panel" style={{ padding: '16px', marginBottom: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          <strong style={{ fontSize: '13px', color: 'white', whiteSpace: 'nowrap' }}>Rank: {levelName}</strong>
-          <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{totalKMs} KM Ridden</span>
+          <strong style={{ fontSize: '13px', color: 'white' }}>Rank: {levelName}</strong>
+          <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 'bold' }}>{totalKMs} KM Ridden</span>
         </div>
         <div style={{ height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden', marginBottom: '8px' }}>
           <div style={{ height: '100%', width: `${progressPercent}%`, background: 'linear-gradient(90deg, var(--primary), var(--secondary))', borderRadius: '4px' }} />
@@ -971,16 +971,16 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
       {/* Stats Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '16px' }}>
         <div className="glass-panel stat-box" style={{ padding: '12px 6px', textAlign: 'center' }}>
-          <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap' }}>Total KM</span>
-          <strong style={{ fontSize: '15px', color: 'white', whiteSpace: 'nowrap', display: 'block', marginTop: '2px' }}>{totalKMs} KM</strong>
+          <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block' }}>KMs Ridden</span>
+          <strong style={{ fontSize: '15px', color: 'white' }}>{totalKMs} KM</strong>
         </div>
         <div className="glass-panel stat-box" style={{ padding: '12px 6px', textAlign: 'center' }}>
-          <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap' }}>Trips</span>
-          <strong style={{ fontSize: '15px', color: 'white', display: 'block', marginTop: '2px' }}>{totalTrips}</strong>
+          <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block' }}>Trips Done</span>
+          <strong style={{ fontSize: '15px', color: 'white' }}>{totalTrips}</strong>
         </div>
         <div className="glass-panel stat-box" style={{ padding: '12px 6px', textAlign: 'center' }}>
-          <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap' }}>Friends</span>
-          <strong style={{ fontSize: '15px', color: 'white', display: 'block', marginTop: '2px' }}>{friends.length}</strong>
+          <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block' }}>Friends</span>
+          <strong style={{ fontSize: '15px', color: 'white' }}>{friends.length}</strong>
         </div>
       </div>
 
