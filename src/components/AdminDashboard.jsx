@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { 
-  Wrench, Sliders, Users, Calendar, AlertTriangle, ShieldCheck, 
+  Wrench, Sliders, Calendar, AlertTriangle, ShieldCheck, 
   Settings, X, Plus, Edit2, Trash2, CheckCircle, RefreshCw, LogOut
 } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 
-const STATES = ['Telangana', 'Andhra Pradesh', 'Karnataka', 'Tamil Nadu', 'Kerala', 'Other'];
+const STATES = ['Telangana', 'Andhra Pradesh', 'Karnataka', 'Tamil Nadu', 'Kerala', 'Maharashtra', 'Rajasthan', 'Uttar Pradesh', 'Gujarat', 'Other'];
 
 const ALL_BRANDS = [
   'Royal Enfield', 'Honda', 'TVS', 'Bajaj', 'Pulsar', 'KTM', 'Yamaha', 
@@ -13,17 +13,46 @@ const ALL_BRANDS = [
   'Triumph', 'Ducati', 'Benelli', 'Aprilia', 'Husqvarna', 'Other'
 ];
 
+const ALL_MECH_SERVICES = [
+  'General Servicing', 'Engine Tuning', 'Clutch Rebuild', 'Fork Alignment',
+  'Electrical Diagnosis', 'Brake Pad Replacement', 'Oil Change', 'Chain Tensioning',
+  'Chain-sprocket Upgrades', 'Coolant Flush', 'ECU Remapping', 'Tappet Adjustments',
+  'Custom Exhaust Fitting', 'Carburetor Jetting', 'Tire Replacement', 'Battery Service'
+];
+
 const ALL_MOD_SERVICES = [
   'Exhausts', 'Seat Customization', 'Wraps', 'Paint Jobs', 'LED Lights', 
-  'Riding Accessories', 'Crash Guards', 'Touring Accessories', 'Performance Mods'
+  'Riding Accessories', 'Crash Guards', 'Touring Accessories', 'Performance Mods',
+  'Tank Pads', 'Handle Grips', 'Phone Mounts', 'Panniers & Luggage', 'Windshield Installation'
 ];
+
+// Helper to auto-generate WhatsApp link from phone number
+const generateWhatsAppNumber = (phone) => {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  // If it starts with 91 and is 12 digits, use as-is
+  if (digits.startsWith('91') && digits.length === 12) return digits;
+  // If it's 10 digits, prepend 91
+  if (digits.length === 10) return '91' + digits;
+  return digits;
+};
+
+// Validate Google Maps URL
+const isValidGoogleMapsUrl = (url) => {
+  if (!url) return true; // optional field
+  return url.startsWith('https://maps.google.com') ||
+    url.startsWith('https://goo.gl/maps') ||
+    url.startsWith('https://www.google.com/maps') ||
+    url.startsWith('https://maps.app.goo.gl') ||
+    url.startsWith('http://maps.google.com') ||
+    url.startsWith('https://google.com/maps');
+};
 
 export default function AdminDashboard({ user, onClose }) {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [toastMessage, setToastMessage] = useState('');
 
   // ── Database lists states ──
-  const [usersList, setUsersList] = useState([]);
   const [mechanicsList, setMechanicsList] = useState([]);
   const [storesList, setStoresList] = useState([]);
   const [reportsList, setReportsList] = useState([]);
@@ -34,18 +63,20 @@ export default function AdminDashboard({ user, onClose }) {
   const [showMechForm, setShowMechForm] = useState(false);
   const [editMech, setEditMech] = useState(null);
   const [mechForm, setMechForm] = useState({
-    shopName: '', ownerName: '', phone: '', whatsapp: '', address: '',
-    city: '', state: 'Telangana', latitude: '', longitude: '',
-    bikeBrands: [], services: [], status: 'Open', image: '🔧'
+    shopName: '', ownerName: '', phone: '', description: '', address: '',
+    city: '', state: 'Telangana', googleMapsLink: '',
+    bikeBrands: [], services: [], status: 'Open'
   });
+  const [mechErrors, setMechErrors] = useState({});
 
   const [showStoreForm, setShowStoreForm] = useState(false);
   const [editStore, setEditStore] = useState(null);
   const [storeForm, setStoreForm] = useState({
-    storeName: '', phone: '', whatsapp: '', address: '',
-    city: '', state: 'Telangana', latitude: '', longitude: '',
-    services: [], image: '🏍️'
+    storeName: '', ownerName: '', phone: '', description: '', address: '',
+    city: '', state: 'Telangana', googleMapsLink: '',
+    services: []
   });
+  const [storeErrors, setStoreErrors] = useState({});
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -56,43 +87,38 @@ export default function AdminDashboard({ user, onClose }) {
   const syncAllData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch Users List
-      const { data: profiles, error: pErr } = await supabase.from('profiles').select('*');
-      if (!pErr && profiles) setUsersList(profiles);
-
-      // 2. Fetch Mechanics
+      // 1. Fetch Mechanics
       const { data: mechs, error: mErr } = await supabase.from('mechanics').select('*');
       if (!mErr && mechs) {
         setMechanicsList(mechs.map(m => ({
           id: m.id, shopName: m.shop_name, ownerName: m.owner_name, phone: m.phone,
-          whatsapp: m.whatsapp, address: m.address, city: m.city, state: m.state,
-          latitude: m.latitude, longitude: m.longitude, bikeBrands: m.bike_brands || [],
-          services: m.services || [], status: m.status, image: m.image
+          description: m.description || '', address: m.address, city: m.city, state: m.state,
+          googleMapsLink: m.google_maps_link || '', bikeBrands: m.bike_brands || [],
+          services: m.services || [], status: m.status
         })));
       } else {
-        // Fallback to local storage if DB fails
         const local = localStorage.getItem('helpriders_admin_mechs');
         if (local) setMechanicsList(JSON.parse(local));
       }
 
-      // 3. Fetch Mod Stores
+      // 2. Fetch Mod Stores
       const { data: stores, error: sErr } = await supabase.from('mod_stores').select('*');
       if (!sErr && stores) {
         setStoresList(stores.map(s => ({
-          id: s.id, storeName: s.store_name, phone: s.phone, whatsapp: s.whatsapp,
-          address: s.address, city: s.city, state: s.state, latitude: s.latitude,
-          longitude: s.longitude, services: s.services || [], image: s.image
+          id: s.id, storeName: s.store_name, ownerName: s.owner_name || '', phone: s.phone,
+          description: s.description || '', address: s.address, city: s.city, state: s.state,
+          googleMapsLink: s.google_maps_link || '', services: s.services || []
         })));
       } else {
         const local = localStorage.getItem('helpriders_admin_stores');
         if (local) setStoresList(JSON.parse(local));
       }
 
-      // 4. Fetch Reports
+      // 3. Fetch Reports
       const { data: reps, error: rErr } = await supabase.from('reports').select('*');
       if (!rErr && reps) setReportsList(reps);
 
-      // 5. Fetch Rides
+      // 4. Fetch Rides
       const { data: rides, error: rdErr } = await supabase.from('rides').select('*');
       if (!rdErr && rides) setRidesList(rides);
 
@@ -109,23 +135,65 @@ export default function AdminDashboard({ user, onClose }) {
     });
   }, [activeTab]);
 
+  // ── Mechanics Validation ──
+  const validateMechForm = () => {
+    const errors = {};
+    if (!mechForm.shopName.trim() || mechForm.shopName.trim().length < 3) {
+      errors.shopName = 'Shop name is required (min 3 characters)';
+    }
+    if (!mechForm.ownerName.trim() || !/^[A-Za-z ]+$/.test(mechForm.ownerName.trim())) {
+      errors.ownerName = 'Owner name is required (letters & spaces only)';
+    }
+    const phoneDigits = mechForm.phone.replace(/\D/g, '');
+    if (!phoneDigits || !/^[6-9]\d{9}$/.test(phoneDigits.slice(-10))) {
+      errors.phone = 'Enter a valid 10-digit Indian mobile number';
+    }
+    if (!mechForm.address.trim()) {
+      errors.address = 'Street address is required';
+    }
+    if (!mechForm.city.trim()) {
+      errors.city = 'City is required';
+    }
+    if (mechForm.description && mechForm.description.length > 150) {
+      errors.description = 'Description must be 150 characters or less';
+    }
+    if (mechForm.googleMapsLink && !isValidGoogleMapsUrl(mechForm.googleMapsLink)) {
+      errors.googleMapsLink = 'Enter a valid Google Maps URL';
+    }
+    if (mechForm.bikeBrands.length === 0) {
+      errors.bikeBrands = 'Select at least 1 bike brand';
+    }
+    if (mechForm.services.length === 0) {
+      errors.services = 'Select at least 1 service';
+    }
+    setMechErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   // ── Mechanics CRUD ──
   const handleMechSubmit = async (e) => {
     e.preventDefault();
+    if (!validateMechForm()) {
+      showToast('⚠️ Please fix the validation errors before submitting.');
+      return;
+    }
+
     const payload = {
-      shop_name: mechForm.shopName,
-      owner_name: mechForm.ownerName,
-      phone: mechForm.phone,
-      whatsapp: mechForm.whatsapp || mechForm.phone,
-      address: mechForm.address,
-      city: mechForm.city,
+      shop_name: mechForm.shopName.trim(),
+      owner_name: mechForm.ownerName.trim(),
+      phone: mechForm.phone.trim(),
+      whatsapp: generateWhatsAppNumber(mechForm.phone),
+      description: mechForm.description.trim(),
+      address: mechForm.address.trim(),
+      city: mechForm.city.trim(),
       state: mechForm.state,
-      latitude: parseFloat(mechForm.latitude) || 17.3850,
-      longitude: parseFloat(mechForm.longitude) || 78.4867,
+      google_maps_link: mechForm.googleMapsLink.trim(),
+      latitude: 0,
+      longitude: 0,
       bike_brands: mechForm.bikeBrands,
-      services: mechForm.services.length > 0 ? mechForm.services : ['General Servicing'],
+      services: mechForm.services,
       status: mechForm.status,
-      image: mechForm.image
+      image: ''
     };
 
     try {
@@ -136,7 +204,6 @@ export default function AdminDashboard({ user, onClose }) {
       } else {
         const { error } = await supabase.from('mechanics').insert(payload);
         if (error) throw error;
-        // Post broadcast notification
         await supabase.from('notifications').insert({
           title: '🔧 New Mechanic Added',
           content: `${payload.shop_name} in ${payload.city} is now active on the map.`,
@@ -146,7 +213,6 @@ export default function AdminDashboard({ user, onClose }) {
       }
     } catch (err) {
       console.warn('Supabase DB block. Saving locally to client storage.', err.message);
-      // Local Storage Backup Operations
       let updated = [...mechanicsList];
       if (editMech) {
         updated = updated.map(m => m.id === editMech.id ? { ...m, ...mechForm } : m);
@@ -160,10 +226,11 @@ export default function AdminDashboard({ user, onClose }) {
 
     setShowMechForm(false);
     setEditMech(null);
+    setMechErrors({});
     setMechForm({
-      shopName: '', ownerName: '', phone: '', whatsapp: '', address: '',
-      city: '', state: 'Telangana', latitude: '', longitude: '',
-      bikeBrands: [], services: [], status: 'Open', image: '🔧'
+      shopName: '', ownerName: '', phone: '', description: '', address: '',
+      city: '', state: 'Telangana', googleMapsLink: '',
+      bikeBrands: [], services: [], status: 'Open'
     });
     syncAllData();
   };
@@ -183,20 +250,60 @@ export default function AdminDashboard({ user, onClose }) {
     syncAllData();
   };
 
+  // ── Mod Store Validation ──
+  const validateStoreForm = () => {
+    const errors = {};
+    if (!storeForm.storeName.trim() || storeForm.storeName.trim().length < 3) {
+      errors.storeName = 'Store name is required (min 3 characters)';
+    }
+    if (!storeForm.ownerName.trim() || !/^[A-Za-z ]+$/.test(storeForm.ownerName.trim())) {
+      errors.ownerName = 'Owner name is required (letters & spaces only)';
+    }
+    const phoneDigits = storeForm.phone.replace(/\D/g, '');
+    if (!phoneDigits || !/^[6-9]\d{9}$/.test(phoneDigits.slice(-10))) {
+      errors.phone = 'Enter a valid 10-digit Indian mobile number';
+    }
+    if (!storeForm.address.trim()) {
+      errors.address = 'Street address is required';
+    }
+    if (!storeForm.city.trim()) {
+      errors.city = 'City is required';
+    }
+    if (storeForm.description && storeForm.description.length > 150) {
+      errors.description = 'Description must be 150 characters or less';
+    }
+    if (storeForm.googleMapsLink && !isValidGoogleMapsUrl(storeForm.googleMapsLink)) {
+      errors.googleMapsLink = 'Enter a valid Google Maps URL';
+    }
+    if (storeForm.services.length === 0) {
+      errors.services = 'Select at least 1 service';
+    }
+    setStoreErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   // ── Mod Stores CRUD ──
   const handleStoreSubmit = async (e) => {
     e.preventDefault();
+    if (!validateStoreForm()) {
+      showToast('⚠️ Please fix the validation errors before submitting.');
+      return;
+    }
+
     const payload = {
-      store_name: storeForm.storeName,
-      phone: storeForm.phone,
-      whatsapp: storeForm.whatsapp || storeForm.phone,
-      address: storeForm.address,
-      city: storeForm.city,
+      store_name: storeForm.storeName.trim(),
+      owner_name: storeForm.ownerName.trim(),
+      phone: storeForm.phone.trim(),
+      whatsapp: generateWhatsAppNumber(storeForm.phone),
+      description: storeForm.description.trim(),
+      address: storeForm.address.trim(),
+      city: storeForm.city.trim(),
       state: storeForm.state,
-      latitude: parseFloat(storeForm.latitude) || 17.3850,
-      longitude: parseFloat(storeForm.longitude) || 78.4867,
-      services: storeForm.services.length > 0 ? storeForm.services : ['Exhausts'],
-      image: storeForm.image
+      google_maps_link: storeForm.googleMapsLink.trim(),
+      latitude: 0,
+      longitude: 0,
+      services: storeForm.services,
+      image: ''
     };
 
     try {
@@ -207,7 +314,6 @@ export default function AdminDashboard({ user, onClose }) {
       } else {
         const { error } = await supabase.from('mod_stores').insert(payload);
         if (error) throw error;
-        // Post broadcast notification
         await supabase.from('notifications').insert({
           title: '🏍️ New Mods Store Added',
           content: `${payload.store_name} in ${payload.city} is now active.`,
@@ -230,10 +336,11 @@ export default function AdminDashboard({ user, onClose }) {
 
     setShowStoreForm(false);
     setEditStore(null);
+    setStoreErrors({});
     setStoreForm({
-      storeName: '', phone: '', whatsapp: '', address: '',
-      city: '', state: 'Telangana', latitude: '', longitude: '',
-      services: [], image: '🏍️'
+      storeName: '', ownerName: '', phone: '', description: '', address: '',
+      city: '', state: 'Telangana', googleMapsLink: '',
+      services: []
     });
     syncAllData();
   };
@@ -251,34 +358,6 @@ export default function AdminDashboard({ user, onClose }) {
       showToast('🗑️ Deleted locally.');
     }
     syncAllData();
-  };
-
-  // ── Access Control (Lets Ride status changes) ──
-  const updateUserLetsRideAccess = async (userId, status) => {
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ lets_ride_status: status })
-        .eq('id', userId);
-
-      if (error) throw error;
-
-      // Notify user of account update
-      await supabase.from('notifications').insert({
-        user_id: userId,
-        title: '🔒 Let\'s Ride Status Update',
-        content: `Your Let's Ride posting status has been updated to: ${status}`,
-        type: 'account'
-      });
-
-      showToast(`Access updated to: ${status}`);
-      syncAllData();
-    } catch (err) {
-      console.warn('Failed to update let\'s ride status:', err.message);
-      // Local fallback simulation
-      setUsersList(prev => prev.map(u => u.id === userId ? { ...u, lets_ride_status: status } : u));
-      showToast('💾 Simulated access status update locally');
-    }
   };
 
   // ── Delete Ride / Reports Moderation ──
@@ -304,6 +383,12 @@ export default function AdminDashboard({ user, onClose }) {
     }
   };
 
+  // Inline error display helper
+  const FieldError = ({ error }) => {
+    if (!error) return null;
+    return <span style={{ fontSize: '10px', color: 'var(--accent)', display: 'block', marginTop: '2px' }}>⚠️ {error}</span>;
+  };
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 110, background: '#09090b', display: 'flex', flexDirection: 'column' }} className="animate-fade-in page-container">
       {/* Header */}
@@ -323,13 +408,12 @@ export default function AdminDashboard({ user, onClose }) {
       {/* Main Grid: Sidebar + Subviews */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         
-        {/* Navigation Sidebar */}
+        {/* Navigation Sidebar — Users tab removed */}
         <div style={{ width: '80px', borderRight: '1px solid rgba(255,255,255,0.06)', background: '#0b0b0f', display: 'flex', flexDirection: 'column', padding: '10px 0', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
           {[
             { id: 'Dashboard', icon: <ShieldCheck size={18} /> },
             { id: 'Mechanics', icon: <Wrench size={18} /> },
             { id: 'Mods Stores', icon: <Sliders size={18} /> },
-            { id: 'Users', icon: <Users size={18} /> },
             { id: 'Ride Requests', icon: <Calendar size={18} /> },
             { id: 'Reports', icon: <AlertTriangle size={18} /> },
             { id: 'Settings', icon: <Settings size={18} /> }
@@ -374,12 +458,12 @@ export default function AdminDashboard({ user, onClose }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} className="animate-fade-in">
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div className="glass-panel" style={{ padding: '14px' }}>
-                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Biker Profiles</span>
-                  <div style={{ fontSize: '20px', fontWeight: '800', color: 'var(--primary)', marginTop: '4px' }}>{usersList.length} Accounts</div>
-                </div>
-                <div className="glass-panel" style={{ padding: '14px' }}>
                   <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Active Rides</span>
                   <div style={{ fontSize: '20px', fontWeight: '800', color: 'var(--secondary)', marginTop: '4px' }}>{ridesList.length} Posts</div>
+                </div>
+                <div className="glass-panel" style={{ padding: '14px' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Reports</span>
+                  <div style={{ fontSize: '20px', fontWeight: '800', color: 'var(--accent)', marginTop: '4px' }}>{reportsList.filter(r => r.status === 'Pending').length} Pending</div>
                 </div>
                 <div className="glass-panel" style={{ padding: '14px' }}>
                   <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Mechanics</span>
@@ -413,74 +497,107 @@ export default function AdminDashboard({ user, onClose }) {
               {!showMechForm ? (
                 <>
                   <button 
-                    onClick={() => { setShowMechForm(true); setEditMech(null); }}
+                    onClick={() => { setShowMechForm(true); setEditMech(null); setMechErrors({}); }}
                     className="btn-primary" 
                     style={{ padding: '10px', width: '100%', fontSize: '12px', borderRadius: '10px' }}
                   >
                     <Plus size={14} /> Add New Mechanic Shop
                   </button>
                   
-                  {mechanicsList.map(mech => (
-                    <div key={mech.id} className="glass-panel" style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <strong style={{ fontSize: '13.5px', color: 'white', display: 'block' }}>{mech.shopName}</strong>
-                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Proprietor: {mech.ownerName} • {mech.city}</span>
-                      </div>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <button 
-                          onClick={() => {
-                            setEditMech(mech);
-                            setMechForm({
-                              shopName: mech.shopName, ownerName: mech.ownerName, phone: mech.phone, whatsapp: mech.whatsapp,
-                              address: mech.address, city: mech.city, state: mech.state, latitude: mech.latitude, longitude: mech.longitude,
-                              bikeBrands: mech.bikeBrands, services: mech.services, status: mech.status, image: mech.image
-                            });
-                            setShowMechForm(true);
-                          }}
-                          style={{ padding: '6px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', color: 'var(--secondary)', cursor: 'pointer' }}
-                        >
-                          <Edit2 size={12} />
-                        </button>
-                        <button 
-                          onClick={() => handleMechDelete(mech.id)}
-                          style={{ padding: '6px', background: 'rgba(255,34,51,0.05)', border: '1px solid rgba(255,34,51,0.15)', borderRadius: '6px', color: 'var(--accent)', cursor: 'pointer' }}
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
+                  {mechanicsList.length === 0 ? (
+                    <div className="glass-panel" style={{ padding: '30px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                      <Wrench size={30} style={{ margin: '0 auto 8px', opacity: 0.4, display: 'block' }} />
+                      <p style={{ fontSize: '13px' }}>No mechanics added yet. Click above to add your first mechanic shop.</p>
                     </div>
-                  ))}
+                  ) : (
+                    mechanicsList.map(mech => (
+                      <div key={mech.id} className="glass-panel" style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <strong style={{ fontSize: '13.5px', color: 'white', display: 'block' }}>{mech.shopName}</strong>
+                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Owner: {mech.ownerName} • {mech.city}</span>
+                          {mech.description && (
+                            <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mech.description}</span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                          <button 
+                            onClick={() => {
+                              setEditMech(mech);
+                              setMechForm({
+                                shopName: mech.shopName, ownerName: mech.ownerName, phone: mech.phone,
+                                description: mech.description || '', address: mech.address, city: mech.city,
+                                state: mech.state, googleMapsLink: mech.googleMapsLink || '',
+                                bikeBrands: mech.bikeBrands, services: mech.services, status: mech.status
+                              });
+                              setMechErrors({});
+                              setShowMechForm(true);
+                            }}
+                            style={{ padding: '6px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', color: 'var(--secondary)', cursor: 'pointer' }}
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                          <button 
+                            onClick={() => handleMechDelete(mech.id)}
+                            style={{ padding: '6px', background: 'rgba(255,34,51,0.05)', border: '1px solid rgba(255,34,51,0.15)', borderRadius: '6px', color: 'var(--accent)', cursor: 'pointer' }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </>
               ) : (
                 <form onSubmit={handleMechSubmit} className="glass-panel animate-zoom-in" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <h4 style={{ color: 'white', fontSize: '14px', fontWeight: 'bold' }}>{editMech ? 'Edit Mechanic Shop' : 'Add New Mechanic'}</h4>
                   
-                  <input type="text" placeholder="Shop Name" value={mechForm.shopName} onChange={e => setMechForm({...mechForm, shopName: e.target.value})} required style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
-                  <input type="text" placeholder="Proprietor/Owner Name" value={mechForm.ownerName} onChange={e => setMechForm({...mechForm, ownerName: e.target.value})} required style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                    <input type="tel" placeholder="Phone" value={mechForm.phone} onChange={e => setMechForm({...mechForm, phone: e.target.value})} required style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
-                    <input type="tel" placeholder="WhatsApp (Link format)" value={mechForm.whatsapp} onChange={e => setMechForm({...mechForm, whatsapp: e.target.value})} style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
+                  <div>
+                    <input type="text" placeholder="Shop Name *" value={mechForm.shopName} onChange={e => setMechForm({...mechForm, shopName: e.target.value})} style={{ width: '100%', padding: '10px', fontSize: '12px', background: '#1c1c24', boxSizing: 'border-box', border: mechErrors.shopName ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white' }} />
+                    <FieldError error={mechErrors.shopName} />
                   </div>
 
-                  <input type="text" placeholder="Street Address" value={mechForm.address} onChange={e => setMechForm({...mechForm, address: e.target.value})} style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
+                  <div>
+                    <input type="text" placeholder="Proprietor/Owner Name *" value={mechForm.ownerName} onChange={e => setMechForm({...mechForm, ownerName: e.target.value.replace(/[^A-Za-z ]/g, '')})} style={{ width: '100%', padding: '10px', fontSize: '12px', background: '#1c1c24', boxSizing: 'border-box', border: mechErrors.ownerName ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white' }} />
+                    <FieldError error={mechErrors.ownerName} />
+                  </div>
+                  
+                  <div>
+                    <input type="tel" placeholder="Phone Number (10 digits) *" value={mechForm.phone} onChange={e => setMechForm({...mechForm, phone: e.target.value.replace(/[^0-9+\- ]/g, '')})} style={{ width: '100%', padding: '10px', fontSize: '12px', background: '#1c1c24', boxSizing: 'border-box', border: mechErrors.phone ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white' }} />
+                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>WhatsApp link will be auto-generated from this number</span>
+                    <FieldError error={mechErrors.phone} />
+                  </div>
+
+                  <div>
+                    <textarea placeholder="Short Description (max 150 characters)" value={mechForm.description} onChange={e => setMechForm({...mechForm, description: e.target.value.slice(0, 150)})} maxLength={150} rows={2} style={{ width: '100%', padding: '10px', fontSize: '12px', background: '#1c1c24', boxSizing: 'border-box', border: mechErrors.description ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white', resize: 'none', fontFamily: 'inherit' }} />
+                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>{mechForm.description.length}/150 characters</span>
+                    <FieldError error={mechErrors.description} />
+                  </div>
+
+                  <div>
+                    <input type="text" placeholder="Street Address *" value={mechForm.address} onChange={e => setMechForm({...mechForm, address: e.target.value})} style={{ width: '100%', padding: '10px', fontSize: '12px', background: '#1c1c24', boxSizing: 'border-box', border: mechErrors.address ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white' }} />
+                    <FieldError error={mechErrors.address} />
+                  </div>
                   
                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px' }}>
-                    <input type="text" placeholder="City" value={mechForm.city} onChange={e => setMechForm({...mechForm, city: e.target.value})} required style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
-                    <select value={mechForm.state} onChange={e => setMechForm({...mechForm, state: e.target.value})} style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }}>
+                    <div>
+                      <input type="text" placeholder="City *" value={mechForm.city} onChange={e => setMechForm({...mechForm, city: e.target.value})} style={{ width: '100%', padding: '10px', fontSize: '12px', background: '#1c1c24', boxSizing: 'border-box', border: mechErrors.city ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white' }} />
+                      <FieldError error={mechErrors.city} />
+                    </div>
+                    <select value={mechForm.state} onChange={e => setMechForm({...mechForm, state: e.target.value})} style={{ padding: '10px', fontSize: '12px', background: '#1c1c24', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white' }}>
                       {STATES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                    <input type="number" step="any" placeholder="Latitude (GPS)" value={mechForm.latitude} onChange={e => setMechForm({...mechForm, latitude: e.target.value})} style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
-                    <input type="number" step="any" placeholder="Longitude (GPS)" value={mechForm.longitude} onChange={e => setMechForm({...mechForm, longitude: e.target.value})} style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
+                  <div>
+                    <input type="url" placeholder="Google Maps Link (paste shop location URL)" value={mechForm.googleMapsLink} onChange={e => setMechForm({...mechForm, googleMapsLink: e.target.value})} style={{ width: '100%', padding: '10px', fontSize: '12px', background: '#1c1c24', boxSizing: 'border-box', border: mechErrors.googleMapsLink ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white' }} />
+                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>Open Google Maps → search shop → Share → Copy link</span>
+                    <FieldError error={mechErrors.googleMapsLink} />
                   </div>
 
                   {/* Brands checklist wrapper */}
                   <div>
-                    <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Brands Supported</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', maxHeight: '100px', overflowY: 'auto', background: '#121216', padding: '8px', borderRadius: '8px' }}>
+                    <label style={{ fontSize: '10px', color: mechErrors.bikeBrands ? 'var(--accent)' : 'var(--text-secondary)', display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>Bike Brands Supported *</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', maxHeight: '120px', overflowY: 'auto', background: '#121216', padding: '8px', borderRadius: '8px', border: mechErrors.bikeBrands ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.04)' }}>
                       {ALL_BRANDS.map(b => (
                         <label key={b} style={{ fontSize: '11px', display: 'flex', gap: '6px', alignItems: 'center', color: 'white', cursor: 'pointer' }}>
                           <input 
@@ -497,19 +614,40 @@ export default function AdminDashboard({ user, onClose }) {
                         </label>
                       ))}
                     </div>
+                    <FieldError error={mechErrors.bikeBrands} />
                   </div>
 
-                  {/* Status toggle & Image emoji */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                    <select value={mechForm.status} onChange={e => setMechForm({...mechForm, status: e.target.value})} style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }}>
-                      <option value="Open">Open</option>
-                      <option value="Closed">Closed</option>
-                    </select>
-                    <input type="text" placeholder="Avatar Emoji (e.g. 🔧)" value={mechForm.image} onChange={e => setMechForm({...mechForm, image: e.target.value})} style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
+                  {/* Services checklist wrapper */}
+                  <div>
+                    <label style={{ fontSize: '10px', color: mechErrors.services ? 'var(--accent)' : 'var(--text-secondary)', display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>Services Offered *</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', maxHeight: '120px', overflowY: 'auto', background: '#121216', padding: '8px', borderRadius: '8px', border: mechErrors.services ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.04)' }}>
+                      {ALL_MECH_SERVICES.map(srv => (
+                        <label key={srv} style={{ fontSize: '11px', display: 'flex', gap: '6px', alignItems: 'center', color: 'white', cursor: 'pointer' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={mechForm.services.includes(srv)}
+                            onChange={(e) => {
+                              const list = e.target.checked 
+                                ? [...mechForm.services, srv] 
+                                : mechForm.services.filter(s => s !== srv);
+                              setMechForm({...mechForm, services: list});
+                            }}
+                          />
+                          {srv}
+                        </label>
+                      ))}
+                    </div>
+                    <FieldError error={mechErrors.services} />
                   </div>
+
+                  {/* Status toggle */}
+                  <select value={mechForm.status} onChange={e => setMechForm({...mechForm, status: e.target.value})} style={{ padding: '10px', fontSize: '12px', background: '#1c1c24', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white' }}>
+                    <option value="Open">Open</option>
+                    <option value="Closed">Closed</option>
+                  </select>
 
                   <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                    <button type="button" onClick={() => { setShowMechForm(false); setEditMech(null); }} className="btn-secondary" style={{ flex: 1, padding: '10px', fontSize: '12px' }}>Cancel</button>
+                    <button type="button" onClick={() => { setShowMechForm(false); setEditMech(null); setMechErrors({}); }} className="btn-secondary" style={{ flex: 1, padding: '10px', fontSize: '12px' }}>Cancel</button>
                     <button type="submit" className="btn-primary" style={{ flex: 2, padding: '10px', fontSize: '12px' }}>{editMech ? 'Save Changes' : 'Publish Workshop'}</button>
                   </div>
                 </form>
@@ -525,73 +663,107 @@ export default function AdminDashboard({ user, onClose }) {
               {!showStoreForm ? (
                 <>
                   <button 
-                    onClick={() => { setShowStoreForm(true); setEditStore(null); }}
+                    onClick={() => { setShowStoreForm(true); setEditStore(null); setStoreErrors({}); }}
                     className="btn-primary" 
                     style={{ padding: '10px', width: '100%', fontSize: '12px', borderRadius: '10px' }}
                   >
                     <Plus size={14} /> Add Modification Store
                   </button>
                   
-                  {storesList.map(store => (
-                    <div key={store.id} className="glass-panel" style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <strong style={{ fontSize: '13.5px', color: 'white', display: 'block' }}>{store.storeName}</strong>
-                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{store.city}, {store.state}</span>
-                      </div>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <button 
-                          onClick={() => {
-                            setEditStore(store);
-                            setStoreForm({
-                              storeName: store.storeName, phone: store.phone, whatsapp: store.whatsapp,
-                              address: store.address, city: store.city, state: store.state, latitude: store.latitude, longitude: store.longitude,
-                              services: store.services, image: store.image
-                            });
-                            setShowStoreForm(true);
-                          }}
-                          style={{ padding: '6px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', color: 'var(--secondary)', cursor: 'pointer' }}
-                        >
-                          <Edit2 size={12} />
-                        </button>
-                        <button 
-                          onClick={() => handleStoreDelete(store.id)}
-                          style={{ padding: '6px', background: 'rgba(255,34,51,0.05)', border: '1px solid rgba(255,34,51,0.15)', borderRadius: '6px', color: 'var(--accent)', cursor: 'pointer' }}
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
+                  {storesList.length === 0 ? (
+                    <div className="glass-panel" style={{ padding: '30px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                      <Sliders size={30} style={{ margin: '0 auto 8px', opacity: 0.4, display: 'block' }} />
+                      <p style={{ fontSize: '13px' }}>No mod stores added yet. Click above to add your first customization store.</p>
                     </div>
-                  ))}
+                  ) : (
+                    storesList.map(store => (
+                      <div key={store.id} className="glass-panel" style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <strong style={{ fontSize: '13.5px', color: 'white', display: 'block' }}>{store.storeName}</strong>
+                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Owner: {store.ownerName} • {store.city}, {store.state}</span>
+                          {store.description && (
+                            <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{store.description}</span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                          <button 
+                            onClick={() => {
+                              setEditStore(store);
+                              setStoreForm({
+                                storeName: store.storeName, ownerName: store.ownerName || '', phone: store.phone,
+                                description: store.description || '', address: store.address, city: store.city,
+                                state: store.state, googleMapsLink: store.googleMapsLink || '',
+                                services: store.services
+                              });
+                              setStoreErrors({});
+                              setShowStoreForm(true);
+                            }}
+                            style={{ padding: '6px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', color: 'var(--secondary)', cursor: 'pointer' }}
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                          <button 
+                            onClick={() => handleStoreDelete(store.id)}
+                            style={{ padding: '6px', background: 'rgba(255,34,51,0.05)', border: '1px solid rgba(255,34,51,0.15)', borderRadius: '6px', color: 'var(--accent)', cursor: 'pointer' }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </>
               ) : (
                 <form onSubmit={handleStoreSubmit} className="glass-panel animate-zoom-in" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <h4 style={{ color: 'white', fontSize: '14px', fontWeight: 'bold' }}>{editStore ? 'Edit Mod Store' : 'Add Mod Store'}</h4>
                   
-                  <input type="text" placeholder="Store Name" value={storeForm.storeName} onChange={e => setStoreForm({...storeForm, storeName: e.target.value})} required style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                    <input type="tel" placeholder="Phone" value={storeForm.phone} onChange={e => setStoreForm({...storeForm, phone: e.target.value})} required style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
-                    <input type="tel" placeholder="WhatsApp (Link format)" value={storeForm.whatsapp} onChange={e => setStoreForm({...storeForm, whatsapp: e.target.value})} style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
+                  <div>
+                    <input type="text" placeholder="Store Name *" value={storeForm.storeName} onChange={e => setStoreForm({...storeForm, storeName: e.target.value})} style={{ width: '100%', padding: '10px', fontSize: '12px', background: '#1c1c24', boxSizing: 'border-box', border: storeErrors.storeName ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white' }} />
+                    <FieldError error={storeErrors.storeName} />
                   </div>
 
-                  <input type="text" placeholder="Street Address" value={storeForm.address} onChange={e => setStoreForm({...storeForm, address: e.target.value})} style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
+                  <div>
+                    <input type="text" placeholder="Proprietor/Owner Name *" value={storeForm.ownerName} onChange={e => setStoreForm({...storeForm, ownerName: e.target.value.replace(/[^A-Za-z ]/g, '')})} style={{ width: '100%', padding: '10px', fontSize: '12px', background: '#1c1c24', boxSizing: 'border-box', border: storeErrors.ownerName ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white' }} />
+                    <FieldError error={storeErrors.ownerName} />
+                  </div>
+                  
+                  <div>
+                    <input type="tel" placeholder="Phone Number (10 digits) *" value={storeForm.phone} onChange={e => setStoreForm({...storeForm, phone: e.target.value.replace(/[^0-9+\- ]/g, '')})} style={{ width: '100%', padding: '10px', fontSize: '12px', background: '#1c1c24', boxSizing: 'border-box', border: storeErrors.phone ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white' }} />
+                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>WhatsApp link will be auto-generated from this number</span>
+                    <FieldError error={storeErrors.phone} />
+                  </div>
+
+                  <div>
+                    <textarea placeholder="Short Description (max 150 characters)" value={storeForm.description} onChange={e => setStoreForm({...storeForm, description: e.target.value.slice(0, 150)})} maxLength={150} rows={2} style={{ width: '100%', padding: '10px', fontSize: '12px', background: '#1c1c24', boxSizing: 'border-box', border: storeErrors.description ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white', resize: 'none', fontFamily: 'inherit' }} />
+                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>{storeForm.description.length}/150 characters</span>
+                    <FieldError error={storeErrors.description} />
+                  </div>
+
+                  <div>
+                    <input type="text" placeholder="Street Address *" value={storeForm.address} onChange={e => setStoreForm({...storeForm, address: e.target.value})} style={{ width: '100%', padding: '10px', fontSize: '12px', background: '#1c1c24', boxSizing: 'border-box', border: storeErrors.address ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white' }} />
+                    <FieldError error={storeErrors.address} />
+                  </div>
                   
                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px' }}>
-                    <input type="text" placeholder="City" value={storeForm.city} onChange={e => setStoreForm({...storeForm, city: e.target.value})} required style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
-                    <select value={storeForm.state} onChange={e => setStoreForm({...storeForm, state: e.target.value})} style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }}>
+                    <div>
+                      <input type="text" placeholder="City *" value={storeForm.city} onChange={e => setStoreForm({...storeForm, city: e.target.value})} style={{ width: '100%', padding: '10px', fontSize: '12px', background: '#1c1c24', boxSizing: 'border-box', border: storeErrors.city ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white' }} />
+                      <FieldError error={storeErrors.city} />
+                    </div>
+                    <select value={storeForm.state} onChange={e => setStoreForm({...storeForm, state: e.target.value})} style={{ padding: '10px', fontSize: '12px', background: '#1c1c24', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white' }}>
                       {STATES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                    <input type="number" step="any" placeholder="Latitude (GPS)" value={storeForm.latitude} onChange={e => setStoreForm({...storeForm, latitude: e.target.value})} style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
-                    <input type="number" step="any" placeholder="Longitude (GPS)" value={storeForm.longitude} onChange={e => setStoreForm({...storeForm, longitude: e.target.value})} style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
+                  <div>
+                    <input type="url" placeholder="Google Maps Link (paste shop location URL)" value={storeForm.googleMapsLink} onChange={e => setStoreForm({...storeForm, googleMapsLink: e.target.value})} style={{ width: '100%', padding: '10px', fontSize: '12px', background: '#1c1c24', boxSizing: 'border-box', border: storeErrors.googleMapsLink ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: 'white' }} />
+                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>Open Google Maps → search shop → Share → Copy link</span>
+                    <FieldError error={storeErrors.googleMapsLink} />
                   </div>
 
-                  {/* Customization checklist */}
+                  {/* Services checklist */}
                   <div>
-                    <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Services Offered</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', background: '#121216', padding: '8px', borderRadius: '8px' }}>
+                    <label style={{ fontSize: '10px', color: storeErrors.services ? 'var(--accent)' : 'var(--text-secondary)', display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>Services Offered *</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', maxHeight: '120px', overflowY: 'auto', background: '#121216', padding: '8px', borderRadius: '8px', border: storeErrors.services ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.04)' }}>
                       {ALL_MOD_SERVICES.map(srv => (
                         <label key={srv} style={{ fontSize: '11px', display: 'flex', gap: '6px', alignItems: 'center', color: 'white', cursor: 'pointer' }}>
                           <input 
@@ -608,12 +780,11 @@ export default function AdminDashboard({ user, onClose }) {
                         </label>
                       ))}
                     </div>
+                    <FieldError error={storeErrors.services} />
                   </div>
 
-                  <input type="text" placeholder="Avatar Emoji (e.g. 🎨)" value={storeForm.image} onChange={e => setStoreForm({...storeForm, image: e.target.value})} style={{ padding: '10px', fontSize: '12px', background: '#1c1c24' }} />
-
                   <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                    <button type="button" onClick={() => { setShowStoreForm(false); setEditStore(null); }} className="btn-secondary" style={{ flex: 1, padding: '10px', fontSize: '12px' }}>Cancel</button>
+                    <button type="button" onClick={() => { setShowStoreForm(false); setEditStore(null); setStoreErrors({}); }} className="btn-secondary" style={{ flex: 1, padding: '10px', fontSize: '12px' }}>Cancel</button>
                     <button type="submit" className="btn-primary" style={{ flex: 2, padding: '10px', fontSize: '12px' }}>{editStore ? 'Save Changes' : 'Publish Store'}</button>
                   </div>
                 </form>
@@ -622,62 +793,7 @@ export default function AdminDashboard({ user, onClose }) {
           )}
 
           {/* ────────────────────────────────────────────────────────────────
-             VIEW D: USERS & LET'S RIDE STATUS
-             ──────────────────────────────────────────────────────────────── */}
-          {activeTab === 'Users' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }} className="animate-fade-in">
-              {usersList.length === 0 ? (
-                <div style={{ color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center', padding: '20px' }}>No active users mapped.</div>
-              ) : (
-                usersList.map(item => (
-                  <div key={item.id} className="glass-panel" style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <strong style={{ color: 'white', fontSize: '14px', display: 'block' }}>{item.name || 'Biker'}</strong>
-                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginTop: '2px' }}>Rider ID: {item.unique_id || 'N/A'}</span>
-                        <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>{item.email} • {item.mobile}</span>
-                      </div>
-                      <span style={{ fontSize: '10px', background: item.lets_ride_status === 'Suspended' ? 'rgba(255, 34, 51, 0.12)' : 'rgba(0, 230, 118, 0.12)', color: item.lets_ride_status === 'Suspended' ? 'var(--accent)' : 'var(--success)', padding: '2px 8px', borderRadius: '10px', fontWeight: 'bold' }}>
-                        {item.lets_ride_status || 'Approved'}
-                      </span>
-                    </div>
-
-                    {/* Verification checks */}
-                    <div style={{ display: 'flex', gap: '6px', fontSize: '10px', background: 'rgba(0,0,0,0.15)', padding: '6px', borderRadius: '6px', color: 'var(--text-secondary)' }}>
-                      <span>🪪 DL: {item.license_front_url ? '✅ Uploaded' : '❌ Missing'}</span>
-                      <span>•</span>
-                      <span>📄 RC: {item.rc_front_url ? '✅ Uploaded' : '❌ Missing'}</span>
-                    </div>
-
-                    {/* Lets ride actions */}
-                    {item.email !== 'admin@helpriderss.com' && (
-                      <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '8px', marginTop: '4px' }}>
-                        {item.lets_ride_status !== 'Approved' && (
-                          <button 
-                            onClick={() => updateUserLetsRideAccess(item.id, 'Approved')}
-                            style={{ flex: 1, padding: '6px', background: 'rgba(0, 230, 118, 0.1)', border: '1px solid rgba(0, 230, 118, 0.2)', borderRadius: '6px', color: 'var(--success)', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
-                          >
-                            ✓ Approve Let's Ride
-                          </button>
-                        )}
-                        {item.lets_ride_status !== 'Suspended' && (
-                          <button 
-                            onClick={() => updateUserLetsRideAccess(item.id, 'Suspended')}
-                            style={{ flex: 1, padding: '6px', background: 'rgba(255, 34, 51, 0.08)', border: '1px solid rgba(255, 34, 51, 0.2)', borderRadius: '6px', color: 'var(--accent)', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
-                          >
-                            🚫 Suspend Access
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-
-          {/* ────────────────────────────────────────────────────────────────
-             VIEW E: RIDES MODERATION
+             VIEW D: RIDES MODERATION
              ──────────────────────────────────────────────────────────────── */}
           {activeTab === 'Ride Requests' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }} className="animate-fade-in">
@@ -704,7 +820,7 @@ export default function AdminDashboard({ user, onClose }) {
           )}
 
           {/* ────────────────────────────────────────────────────────────────
-             VIEW F: USER COMPLAINT REPORTS
+             VIEW E: USER COMPLAINT & ERROR REPORTS
              ──────────────────────────────────────────────────────────────── */}
           {activeTab === 'Reports' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }} className="animate-fade-in">
@@ -717,12 +833,12 @@ export default function AdminDashboard({ user, onClose }) {
                 reportsList.map(rep => (
                   <div key={rep.id} className="glass-panel" style={{ padding: '12px', border: rep.status === 'Pending' ? '1px solid var(--accent)' : '1px solid var(--glass-border)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '8px', color: 'white' }}>{rep.reported_item_type.toUpperCase()}</span>
+                      <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '8px', color: 'white' }}>{(rep.reported_item_type || 'ERROR').toUpperCase()}</span>
                       <span style={{ fontSize: '10px', fontWeight: 'bold', color: rep.status === 'Pending' ? 'var(--accent)' : 'var(--success)' }}>{rep.status}</span>
                     </div>
                     <strong style={{ fontSize: '13.5px', color: 'white', display: 'block', marginTop: '6px' }}>Reason: {rep.reason}</strong>
                     <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: '1.4' }}>{rep.details}</p>
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginTop: '6px' }}>Reported by: {rep.reporter_name}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginTop: '6px' }}>Reported by: {rep.reporter_name || 'User'}</span>
                     
                     {rep.status === 'Pending' && (
                       <button 
@@ -739,7 +855,7 @@ export default function AdminDashboard({ user, onClose }) {
           )}
 
           {/* ────────────────────────────────────────────────────────────────
-             VIEW G: GENERAL SETTINGS
+             VIEW F: GENERAL SETTINGS
              ──────────────────────────────────────────────────────────────── */}
           {activeTab === 'Settings' && (
             <div className="glass-panel animate-fade-in" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -750,7 +866,7 @@ export default function AdminDashboard({ user, onClose }) {
 
               <div>
                 <label style={{ fontSize: '10.5px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Default Admin Email</label>
-                <input type="text" readOnly value="admin@helpriderss.com" style={{ width: '100%', padding: '10px', fontSize: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--text-muted)' }} />
+                <input type="text" readOnly value="admin@helpriderss.com" style={{ width: '100%', padding: '10px', fontSize: '12px', background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--text-muted)', boxSizing: 'border-box' }} />
               </div>
 
               <div>

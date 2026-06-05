@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Award, Bike, PhoneCall, ShieldAlert, ShieldCheck,
   LogOut, Plus, Trash2,
-  Camera, MessageSquare, Send, X, Headphones,
-  Copy, UserPlus, Search, Check, Ban, Share2, ChevronRight, Users,
+  Camera, MessageSquare, Send, X, Headphones, AlertCircle,
+  Copy, UserPlus, Search, Check, Ban, ChevronRight, Users,
   Download, Lock
 } from 'lucide-react';
 import { supabase } from '../utils/supabase';
@@ -911,10 +911,38 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
   const [devSent, setDevSent] = useState(false);
   const [showDevForm, setShowDevForm] = useState(false);
 
-  // ── Referral ───────────────────────────────────────────────────────────────
-  const referralLink = `https://helpriderss.vercel.app?ref=${uniqueId}`;
-  const copyReferral = () => {
-    navigator.clipboard.writeText(referralLink).then(() => showToast('✅ Referral link copied! Share with friends.'));
+  // ── Report Error ───────────────────────────────────────────────────────────
+  const [showReportForm, setShowReportForm] = useState(false);
+  const [reportType, setReportType] = useState('Bug');
+  const [reportDescription, setReportDescription] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportSent, setReportSent] = useState(false);
+
+  const handleReportError = async (e) => {
+    e.preventDefault();
+    if (!reportDescription.trim()) {
+      showToast('⚠️ Please describe the issue.');
+      return;
+    }
+    setReportSubmitting(true);
+    try {
+      const { error } = await supabase.from('reports').insert({
+        reported_item_type: 'error',
+        reason: reportType,
+        details: reportDescription.trim(),
+        reporter_name: user?.displayName || user?.email || 'User',
+        reporter_id: user?.uid || null,
+        status: 'Pending'
+      });
+      if (error) throw error;
+      setReportSent(true);
+      setReportDescription('');
+      showToast('✅ Error report submitted! Our team will review it.');
+    } catch (err) {
+      showToast('❌ Failed to submit report: ' + err.message);
+    } finally {
+      setReportSubmitting(false);
+    }
   };
 
   const isAdmin = user && (user.email === 'admin@helpriderss.com' || user.level === 'System Administrator');
@@ -1708,23 +1736,70 @@ export default function Profile({ user, onLogout, rides, onInstallApp, isInstall
         </form>
       </div>
 
-      {/* Refer a Friend */}
-      <div className="glass-panel" style={{ padding: '16px', marginBottom: '16px', border: '1px solid rgba(0,176,255,0.15)' }}>
+      {/* Report Error */}
+      <div className="glass-panel" style={{ padding: '16px', marginBottom: '16px', border: '1px solid rgba(255, 34, 51, 0.15)' }}>
         <h4 style={{ fontSize: '15px', color: 'white', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Share2 size={16} color="#00b0ff" /> Refer Friends
+          <AlertCircle size={16} color="var(--accent)" /> Report an Error
         </h4>
         <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '12px', lineHeight: '1.5' }}>
-          Invite your real riding friends to join HELPRIDERSS! Share your referral link.
+          Found a bug or issue? Let us know so we can fix it quickly.
         </p>
-        <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: '10px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{referralLink}</span>
-          <button onClick={copyReferral} style={{ background: 'rgba(0,176,255,0.1)', border: '1px solid rgba(0,176,255,0.2)', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', color: '#00b0ff', fontWeight: 'bold', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-            <Copy size={12} /> Copy
+
+        {reportSent ? (
+          <div style={{ textAlign: 'center', padding: '16px', background: 'rgba(0,230,118,0.06)', border: '1px solid rgba(0,230,118,0.2)', borderRadius: '12px' }}>
+            <div style={{ fontSize: '28px', marginBottom: '6px' }}>✅</div>
+            <strong style={{ color: 'var(--success)', fontSize: '13px', display: 'block' }}>Report Submitted!</strong>
+            <p style={{ color: 'var(--text-muted)', fontSize: '11px', margin: '4px 0 0' }}>Our team will review and resolve it soon.</p>
+            <button onClick={() => { setReportSent(false); setShowReportForm(false); }} style={{ marginTop: '10px', fontSize: '11px', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
+              Report another issue
+            </button>
+          </div>
+        ) : !showReportForm ? (
+          <button 
+            onClick={() => setShowReportForm(true)}
+            style={{ width: '100%', padding: '12px', background: 'rgba(255, 34, 51, 0.08)', color: 'var(--accent)', border: '1px solid rgba(255, 34, 51, 0.2)', borderRadius: '10px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+          >
+            <AlertCircle size={14} /> Report an Issue
           </button>
-        </div>
-        <p style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-          📱 Works on WhatsApp, Instagram, SMS — share anywhere!
-        </p>
+        ) : (
+          <form onSubmit={handleReportError} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }} className="animate-zoom-in">
+            <div>
+              <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Error Type</label>
+              <select 
+                value={reportType} 
+                onChange={e => setReportType(e.target.value)}
+                style={{ width: '100%', padding: '10px 12px', fontSize: '13px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', boxSizing: 'border-box' }}
+              >
+                <option value="Bug">Bug</option>
+                <option value="Crash">App Crash</option>
+                <option value="UI Issue">UI Issue</option>
+                <option value="Data Error">Data Error</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '10px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Describe the issue (max 300 characters)</label>
+              <textarea 
+                placeholder="What went wrong? Please describe the issue..." 
+                value={reportDescription} 
+                onChange={e => setReportDescription(e.target.value.slice(0, 300))} 
+                maxLength={300}
+                rows={3}
+                required
+                style={{ width: '100%', padding: '10px 12px', fontSize: '13px', background: '#1c1c24', color: 'white', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', boxSizing: 'border-box', resize: 'none', fontFamily: 'inherit' }}
+              />
+              <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>{reportDescription.length}/300 characters</span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button type="button" onClick={() => setShowReportForm(false)} className="btn-secondary" style={{ flex: 1, padding: '10px', fontSize: '12px' }}>
+                Cancel
+              </button>
+              <button type="submit" disabled={reportSubmitting} style={{ flex: 2, padding: '10px', background: 'rgba(255, 34, 51, 0.15)', color: 'var(--accent)', border: '1px solid rgba(255, 34, 51, 0.3)', borderRadius: '10px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                {reportSubmitting ? 'Submitting...' : 'Submit Report'}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* Contact Developer */}

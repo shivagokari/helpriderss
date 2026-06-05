@@ -5,48 +5,14 @@ import {
 } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 
-// Local Backup/Seed Data for Mod Stores
-const SEED_MOD_STORES = [
-  {
-    id: 'store-1',
-    storeName: 'Redline Custom Exhausts & Accessories',
-    phone: '+91 97766 55443',
-    whatsapp: '+919776655443',
-    address: 'Opposite Gachibowli Stadium Road',
-    city: 'Hyderabad',
-    state: 'Telangana',
-    latitude: 17.4450,
-    longitude: 78.3400,
-    services: ['Exhausts', 'Performance Mods', 'Crash Guards', 'Touring Accessories'],
-    image: '🔥'
-  },
-  {
-    id: 'store-2',
-    storeName: 'Royal Wraps & Custom Seats',
-    phone: '+91 96655 44332',
-    whatsapp: '+919665544332',
-    address: 'Metro Pillar 1042, Madhapur Main Road',
-    city: 'Hyderabad',
-    state: 'Telangana',
-    latitude: 17.4490,
-    longitude: 78.3800,
-    services: ['Seat Customization', 'Wraps', 'Paint Jobs', 'LED Lights'],
-    image: '🎨'
-  },
-  {
-    id: 'store-3',
-    storeName: 'GearUp Riding gear & Touring Mods',
-    phone: '+91 95544 33221',
-    whatsapp: '+919554433221',
-    address: 'PG Road, Near Paradise, Secunderabad',
-    city: 'Hyderabad',
-    state: 'Telangana',
-    latitude: 17.4439,
-    longitude: 78.4980,
-    services: ['Riding Accessories', 'Touring Accessories', 'Crash Guards', 'LED Lights'],
-    image: '🎒'
-  }
-];
+// Helper to auto-generate WhatsApp number from phone
+const generateWhatsAppNumber = (phone) => {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('91') && digits.length === 12) return digits;
+  if (digits.length === 10) return '91' + digits;
+  return digits;
+};
 
 export default function ModsTab() {
   const [stores, setStores] = useState([]);
@@ -54,7 +20,7 @@ export default function ModsTab() {
   const [loading, setLoading] = useState(true);
   const [selectedStore, setSelectedStore] = useState(null);
 
-  // Fetch mod stores from Supabase with local fallback
+  // Fetch mod stores from Supabase — NO seed data fallback
   const fetchModStores = async () => {
     setLoading(true);
     try {
@@ -66,27 +32,27 @@ export default function ModsTab() {
       if (error) throw error;
 
       if (data && data.length > 0) {
-        // Map snake_case database columns to camelCase component properties
         const mapped = data.map(s => ({
           id: s.id,
           storeName: s.store_name,
+          ownerName: s.owner_name || '',
           phone: s.phone,
-          whatsapp: s.whatsapp,
+          description: s.description || '',
           address: s.address,
           city: s.city,
           state: s.state,
+          googleMapsLink: s.google_maps_link || '',
           latitude: s.latitude,
           longitude: s.longitude,
-          services: s.services || [],
-          image: s.image
+          services: s.services || []
         }));
         setStores(mapped);
       } else {
-        setStores(SEED_MOD_STORES);
+        setStores([]);
       }
     } catch (err) {
-      console.warn('Failed to load mod stores from database, using seed data:', err.message);
-      setStores(SEED_MOD_STORES);
+      console.warn('Failed to load mod stores from database:', err.message);
+      setStores([]);
     } finally {
       setLoading(false);
     }
@@ -104,6 +70,7 @@ export default function ModsTab() {
     const q = searchQuery.toLowerCase();
     return stores.filter(s => 
       s.storeName.toLowerCase().includes(q) || 
+      s.ownerName.toLowerCase().includes(q) ||
       s.services.some(srv => srv.toLowerCase().includes(q)) ||
       s.city.toLowerCase().includes(q)
     );
@@ -129,7 +96,7 @@ export default function ModsTab() {
         <input 
           type="text" 
           className="has-left-icon"
-          placeholder="Search by store or custom service..."
+          placeholder="Search by store, owner, or service..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{ width: '100%', padding: '10px 12px 10px 38px', fontSize: '13px', background: 'var(--bg-tertiary)' }}
@@ -145,7 +112,7 @@ export default function ModsTab() {
       ) : filteredStores.length === 0 ? (
         <div className="glass-panel" style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
           <Sliders size={32} style={{ marginBottom: '12px', opacity: 0.5, margin: '0 auto' }} />
-          <p style={{ fontSize: '13px' }}>No mod stores found matching your query.</p>
+          <p style={{ fontSize: '13px' }}>No mod stores found. Admin will add customization shops soon.</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -163,17 +130,25 @@ export default function ModsTab() {
               }}
             >
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                {/* Logo wrapper */}
-                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0, border: '1px solid rgba(255,255,255,0.06)' }}>
-                  {store.image || '🏍️'}
+                {/* Letter Avatar */}
+                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'linear-gradient(135deg, var(--secondary), var(--primary))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 'bold', color: 'white', flexShrink: 0, border: '1px solid rgba(255,255,255,0.06)' }}>
+                  {(store.storeName || 'S')[0].toUpperCase()}
                 </div>
                 {/* Info details */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <h4 style={{ fontSize: '15px', color: 'white', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{store.storeName}</h4>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📍 {store.address}</span>
+                  {store.ownerName && (
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginTop: '2px' }}>Owner: {store.ownerName}</span>
+                  )}
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📍 {store.address}</span>
                   <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>{store.city}, {store.state}</span>
                 </div>
               </div>
+
+              {/* Description */}
+              {store.description && (
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '8px', lineHeight: '1.4', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{store.description}</p>
+              )}
 
               {/* Services Offered Badges */}
               <div style={{ display: 'flex', gap: '4px', overflowX: 'hidden', marginTop: '10px', flexWrap: 'wrap' }}>
@@ -208,14 +183,24 @@ export default function ModsTab() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {/* Header branding */}
                 <div style={{ display: 'flex', gap: '14px', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '14px' }}>
-                  <div style={{ width: '60px', height: '60px', borderRadius: '14px', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '30px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                    {selectedStore.image || '🏍️'}
+                  <div style={{ width: '60px', height: '60px', borderRadius: '14px', background: 'linear-gradient(135deg, var(--secondary), var(--primary))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '26px', fontWeight: 'bold', color: 'white', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    {(selectedStore.storeName || 'S')[0].toUpperCase()}
                   </div>
                   <div>
                     <h3 style={{ fontSize: '18px', color: 'white', fontWeight: 'bold' }}>{selectedStore.storeName}</h3>
-                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginTop: '2px' }}>📍 {selectedStore.city}, {selectedStore.state}</span>
+                    {selectedStore.ownerName && (
+                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginTop: '2px' }}>Owner: {selectedStore.ownerName}</span>
+                    )}
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>📍 {selectedStore.city}, {selectedStore.state}</span>
                   </div>
                 </div>
+
+                {/* Description */}
+                {selectedStore.description && (
+                  <div style={{ background: 'rgba(255,170,0,0.04)', border: '1px solid rgba(255,170,0,0.1)', padding: '10px 12px', borderRadius: '10px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                    {selectedStore.description}
+                  </div>
+                )}
 
                 {/* Address summary */}
                 <div style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '12px', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -239,7 +224,7 @@ export default function ModsTab() {
                   </div>
                 </div>
 
-                {/* Call & WhatsApp CTAs */}
+                {/* Call & WhatsApp CTAs — WhatsApp auto-generated from phone */}
                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                   <a 
                     href={`tel:${selectedStore.phone}`}
@@ -249,7 +234,7 @@ export default function ModsTab() {
                     <Phone size={14} /> Call Store
                   </a>
                   <a 
-                    href={`https://api.whatsapp.com/send?phone=${selectedStore.whatsapp.replace(/\D/g, '')}&text=Hello,%20I%20saw%20your%20modification%20store%20on%20Help%20Riders!`}
+                    href={`https://api.whatsapp.com/send?phone=${generateWhatsAppNumber(selectedStore.phone)}&text=Hello,%20I%20saw%20your%20modification%20store%20on%20Help%20Riders!`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn-primary"
@@ -259,10 +244,10 @@ export default function ModsTab() {
                   </a>
                 </div>
 
-                {/* Map routing direction */}
-                {selectedStore.latitude && selectedStore.longitude && (
+                {/* Map routing — use Google Maps link if available, otherwise fall back to coordinates */}
+                {(selectedStore.googleMapsLink || (selectedStore.latitude && selectedStore.longitude)) && (
                   <a 
-                    href={`https://www.google.com/maps/dir/?api=1&destination=${selectedStore.latitude},${selectedStore.longitude}`} 
+                    href={selectedStore.googleMapsLink || `https://www.google.com/maps/dir/?api=1&destination=${selectedStore.latitude},${selectedStore.longitude}`} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="btn-primary"
